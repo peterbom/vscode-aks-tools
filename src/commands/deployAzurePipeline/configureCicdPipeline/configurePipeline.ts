@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as k8s from 'vscode-kubernetes-tools-api';
 import { IActionContext } from 'vscode-azureextensionui';
 import { resourceNode } from './models/resourceNode';
+import { getAksClusterTreeItem } from '../../utils/clusters';
+
 const CONFIGURE_PIPELINE_COMMAND = 'configure-cicd-pipeline';
 const DEPLOY_TO_AZURE_EXTENSION_ID = 'ms-vscode-deploy-azure.azure-deploy';
 
@@ -9,15 +11,18 @@ export async function configurePipeline(context: IActionContext, target: any): P
     const deployToAzureExtensionInstalled = isDeployToAzureExtensionInstalled();
     if (deployToAzureExtensionInstalled) {
         const cloudExplorer = await k8s.extension.cloudExplorer.v1;
-        if (cloudExplorer.available) {
-            const clusterTarget = cloudExplorer.api.resolveCommandTarget(target);
-            if (clusterTarget && clusterTarget.cloudName === "Azure" && clusterTarget.nodeType === "resource" && clusterTarget.cloudResource.nodeType === "cluster") {
-                const cluster: resourceNode = { resource: { id: clusterTarget.cloudResource.armId, type: clusterTarget.cloudResource.nodeType }, subscriptionId: clusterTarget.cloudResource.subscription.subscriptionId };
-                await executeDeployToAzureExtensionInstalled(CONFIGURE_PIPELINE_COMMAND, cluster);
-            } else {
-                vscode.window.showInformationMessage('This command only applies to AKS clusters.');
-            }
+        const clusterTreeItem = getAksClusterTreeItem(target, cloudExplorer);
+        if (clusterTreeItem === undefined) {
+            return;
         }
+
+        if (clusterTreeItem.subscription.subscriptionId === undefined) {
+            vscode.window.showErrorMessage(`subscriptionId not set for cluster tree item ${clusterTreeItem.name}`);
+            return;
+        }
+
+        const cluster: resourceNode = { resource: { id: clusterTreeItem.armId, type: clusterTreeItem.nodeType }, subscriptionId: clusterTreeItem.subscription.subscriptionId };
+        await executeDeployToAzureExtensionInstalled(CONFIGURE_PIPELINE_COMMAND, cluster);
     } else {
         const installDeployToAzure = await vscode.window.showInformationMessage(
             '"Deploy to Azure" VSCode extension is needed for this command. Please install/enable the extension and try again.',
