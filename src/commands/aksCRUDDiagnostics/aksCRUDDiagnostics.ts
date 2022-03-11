@@ -39,19 +39,27 @@ async function loadDetector(
     await longRunning(`Loading ${clustername} diagnostics.`,
           async () => {
             const clusterAppLensData = await getAppLensDetectorData(cloudTarget, "aks-category-crud");
-            const detectorMap = new Map();
+            if (clusterAppLensData === undefined) {
+              vscode.window.showErrorMessage('Unable to retrieve AppLens data.');
+              return;
+            }
 
             // Crud detector list is guranteed form the ARM call to aks-category-crud, under below data structure.
-            const crudDetectorList = clusterAppLensData?.properties.dataset[0].renderingProperties.detectorIds;
-
-            await Promise.all(crudDetectorList.map(async (detector: string) => {
-              const detectorAppLensData = await getAppLensDetectorData(cloudTarget, detector);
-              detectorMap.set(detector , detectorAppLensData);
-            }));
-
-            if (clusterAppLensData && detectorMap.size > 0) {
-              await createDetectorWebView(clustername, clusterAppLensData, detectorMap, extensionPath);
+            const crudDetectorList: string[] = clusterAppLensData?.properties.dataset[0].renderingProperties.detectorIds;
+            if (crudDetectorList.length === 0) {
+              vscode.window.showErrorMessage('No detectors found in AppLens response.');
+              return;
             }
+
+            let results: (AppLensARMResponse | undefined)[] = [];
+            try {
+              results = await Promise.all(crudDetectorList.map((detector) => getAppLensDetectorData(cloudTarget, detector)));
+            } catch (err) {
+              vscode.window.showErrorMessage(`Error running detector: ${err}`);
+            }
+
+            const detectorMap = new Map(results.map((r, i) => [crudDetectorList[i], r]));
+            await createDetectorWebView(clustername, clusterAppLensData, detectorMap, extensionPath);
           }
       );
   }
