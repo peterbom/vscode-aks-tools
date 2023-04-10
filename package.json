@@ -101,6 +101,12 @@
                     "default": "v0.12.1",
                     "title": "Kubectl-gadget repository release tag",
                     "description": "Release tag for the stable kubectl-gadget tool."
+                },
+                "azure.kubectlaiconfig.releaseTag": {
+                    "type": "string",
+                    "default": "v0.0.6",
+                    "title": "Kubectl-AI repository release tag",
+                    "description": "Release tag for the stable kubectl-AI tool."
                 }
             }
         },
@@ -252,6 +258,10 @@
             {
                 "command": "aks.aksInspektorGadgetSnapshotSocket",
                 "title": "Snapshot Socket"
+            },
+            {
+                "command": "aks.aksKubectlAIDeployNginX",
+                "title": "Kubectl-AI Nginx Deploy"
             }
         ],
         "menus": {
@@ -319,6 +329,11 @@
                     "submenu": "aks.inspektorGadgetSubMenu",
                     "when": "view == kubernetes.cloudExplorer && viewItem =~ /aks\\.cluster/i || view == extension.vsKubernetesExplorer && viewItem =~ /vsKubernetes\\.\\w*cluster$/i",
                     "group": "9@4"
+                },
+                {
+                    "submenu": "aks.kubectlAISubMenu",
+                    "when": "view == kubernetes.cloudExplorer && viewItem =~ /aks\\.cluster/i || view == extension.vsKubernetesExplorer && viewItem =~ /vsKubernetes\\.\\w*cluster$/i",
+                    "group": "9@5"
                 }
             ],
             "aks.detectorsSubMenu": [
@@ -476,6 +491,12 @@
                     "command": "aks.aksInspektorGadgetSnapshotSocket",
                     "group": "navigation"
                 }
+            ],
+            "aks.kubectlAISubMenu": [
+                {
+                    "command": "aks.aksKubectlAIDeployNginX",
+                    "group": "navigation"
+                }
             ]
         },
         "submenus": [
@@ -518,6 +539,10 @@
             {
                 "id": "aks.inspektorGadgetSanpshotCommandSubMenu",
                 "label": "Sanpshot Commands"
+            },
+            {
+                "id": "aks.kubectlAISubMenu",
+                "label": "Run Kubectl AI Commands"
             }
         ]
     },

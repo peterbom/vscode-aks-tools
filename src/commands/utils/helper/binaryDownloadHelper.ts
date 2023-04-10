@@ -33,7 +33,7 @@ export async function getToolBinaryPath(
        return {succeeded: true, result: binaryFilePath};
     }
  
-    return await longRunning(`Downloading kubectl-gadget to ${binaryFilePath}.`, () => downloadBinary(toolName, binaryFilePath, downloadUrl, pathToBinaryInArchive));
+    return await longRunning(`Downloading to ${binaryFilePath}.`, () => downloadBinary(toolName, binaryFilePath, downloadUrl, pathToBinaryInArchive));
 }
 
 async function downloadBinary(

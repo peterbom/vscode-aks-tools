@@ -53,6 +53,24 @@ export function getKubeloginConfig(): Errorable<KubeloginConfig> {
     return { succeeded: true, result: configresult };
 }
 
+export function getKubectlAIConfig(): Errorable<KubeloginConfig> {
+    const kubectlaiConfig = vscode.workspace.getConfiguration('azure.kubectlaiconfig');
+    const config = getConfigValue(kubectlaiConfig, 'releaseTag');
+
+    if (failed(config)) {
+        return {
+            succeeded: false,
+            error: `Failed to read azure.kubectlaiconfig configuration: ${config.error}`
+        };
+    }
+
+    const configresult = {
+        releaseTag: config.result
+    };
+
+    return { succeeded: true, result: configresult };
+}
+
 export function getKubectlGadgetConfig(): Errorable<KubeloginConfig> {
     const kubectlGadgetConfig = vscode.workspace.getConfiguration('azure.kubectlgadget');
     const config = getConfigValue(kubectlGadgetConfig, 'releaseTag');
