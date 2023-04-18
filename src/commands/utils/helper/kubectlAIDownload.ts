@@ -27,7 +27,7 @@ export async function getKubectlAIBinaryPath(): Promise<Errorable<string>> {
     const pathToBinaryInArchive = getPathToBinaryInArchive();
     const binaryFilename = path.basename(pathToBinaryInArchive);
 
-    return await getToolBinaryPath("kubectlai", releaseTag, downloadUrl, pathToBinaryInArchive, binaryFilename);
+    return await getToolBinaryPath("kubectl-ai", releaseTag, downloadUrl, pathToBinaryInArchive, binaryFilename);
 }
 
 function getArchiveFilename() {
