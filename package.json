@@ -261,7 +261,7 @@
             },
             {
                 "command": "aks.aksKubectlAIDeployNginX",
-                "title": "Kubectl-AI Nginx Deploy"
+                "title": "Launch Kubectl-AI Prompt."
             }
         ],
         "menus": {

@@ -100,10 +100,8 @@ async function runKubectlAIGadgetCommands(
     }
 
     const extensionPath = getExtensionPath();
-    // let t = vscode.window.createTerminal("test-1");
-    // t.sendText(`export OPENAI_API_KEY=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`)
-    // t.sendText(`/Users/tatsatmishra/.vs-kubernetes/tools/kubectlai/v0.0.6/kubectl-ai "create an nginx deployment with 3 replicas" --raw`); // new line is added by default to execute
-    // vscode.window.showInformationMessage("test");
+    // Identify the env var: OPENAI_API_KEY exist if not get input for ai key
+    // THe below code will change to the multiwizard step.
 
     await longRunning(`Running kubectl ai command on ${clustername}`,
         async () => {
@@ -126,17 +124,13 @@ async function runKubectlAIGadgetCommands(
                 return;
             }
 
-            // const fileName = await tmpfile.withUntitledTempFile(kubectlresult.result.stderr, "YAML");
+            // Open data in editor.
             vscode.workspace.openTextDocument({
                 content: kubectlresult.result.stdout,
                 language: "yaml"
             }).then(newDocument => {
                 vscode.window.showTextDocument(newDocument);
             });
-            
-            // if (kubectlresult.succeeded) {
-            //     vscode.workspace.openTextDocument(fileName);
-            // }
         }
     );
 
