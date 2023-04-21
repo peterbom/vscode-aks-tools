@@ -71,23 +71,40 @@ async function nginxDeployReplicas(
     clustername: string,
     clusterConfig: string,
     kubectl: k8s.APIAvailable<k8s.KubectlV1>) {
-    // const command = Command.NginxDeployReplicas;
+
+    // Identify the env var: OPENAI_API_KEY exist if not get input for ai key
+    console.log(process.env.OPENAI_API_KEY);
+    let openAIKey = process.env.OPENAI_API_KEY;
+
+    if (openAIKey == "" || openAIKey == undefined) {
+        const aiKey = await vscode.window.showInputBox({
+            placeHolder: `Please supply a valid Open AI or Azure OpenAI Key"`
+        });
+    
+        if (aiKey == '' || aiKey == undefined) {
+            vscode.window.showErrorMessage('A valid aikey is mandatory to execute this action');
+            return;
+        }
+
+        openAIKey = aiKey;
+    }
 
     const command = await vscode.window.showInputBox({
         placeHolder: `Kubectl AI Command Query here: like "create an nginx deployment with 3 replicas"`,
-        prompt:`Please enter Kubectl AI Prompt for generating manifest forexample: "create an nginx deployment with 3 replicas"`
-      });
+        prompt: `Please enter Kubectl AI Prompt for generating manifest forexample: "create an nginx deployment with 3 replicas"`
+    });
 
-      if(command === '' || command == undefined){
+    if (command === '' || command == undefined) {
         vscode.window.showErrorMessage('A command for kubectl ai is mandatory to execute this action');
         return;
-      }
+    }
 
-    return await runKubectlAIGadgetCommands(clustername, command, clusterConfig, kubectl);
+    return await runKubectlAIGadgetCommands(clustername, openAIKey!, command, clusterConfig, kubectl);
 }
 
 async function runKubectlAIGadgetCommands(
     clustername: string,
+    aiKey: string,
     command: string,
     clusterConfig: string,
     kubectl: k8s.APIAvailable<k8s.KubectlV1>) {
@@ -100,12 +117,10 @@ async function runKubectlAIGadgetCommands(
     }
 
     const extensionPath = getExtensionPath();
-    // Identify the env var: OPENAI_API_KEY exist if not get input for ai key
-    // THe below code will change to the multiwizard step.
 
     await longRunning(`Running kubectl ai command on ${clustername}`,
         async () => {
-            const commandToRun = `ai  --openai-api-key "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" "${command}" --raw`;
+            const commandToRun = `ai  --openai-api-key "${aiKey}" "${command}" --raw`;
             const binaryPathDir = path.dirname(kubectlAIPath.result);
 
             if (process.env.PATH === undefined) {
