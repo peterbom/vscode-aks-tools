@@ -9,15 +9,25 @@ import * as tmpfile from '../utils/tempfile';
 import path = require('path');
 import { invokeKubectlCommand } from '../utils/kubectl';
 
+var shelljs = require('shelljs');
+
 enum Command {
-    NginxDeployReplicas = "create an nginx deployment with 3 replicas"
+    KubectlAICommand,
+    BuildUpAICommandFromPreviousRun
 }
 
 export async function aksKubectlAIDeploy(
     _context: IActionContext,
     target: any
 ): Promise<void> {
-    await checkTargetAndRunKubectlAICommand(target, Command.NginxDeployReplicas)
+    await checkTargetAndRunKubectlAICommand(target, Command.KubectlAICommand)
+}
+
+export async function aksKubectlAIRePrompt(
+    _context: IActionContext,
+    target: any
+): Promise<void> {
+    await checkTargetAndRunKubectlAICommand(target, Command.BuildUpAICommandFromPreviousRun)
 }
 
 async function checkTargetAndRunKubectlAICommand(
@@ -49,10 +59,10 @@ async function checkTargetAndRunKubectlAICommand(
         return undefined;
     }
 
-    await runGadgetCommand(clusterInfo.result, cmd, kubectl);
+    await runKubectlAICommand(clusterInfo.result, cmd, kubectl);
 }
 
-async function runGadgetCommand(
+async function runKubectlAICommand(
     clusterInfo: KubernetesClusterInfo,
     cmd: Command,
     kubectl: k8s.APIAvailable<k8s.KubectlV1>
@@ -61,32 +71,35 @@ async function runGadgetCommand(
     const kubeconfig = clusterInfo.kubeconfigYaml;
 
     switch (cmd) {
-        case Command.NginxDeployReplicas:
-            await nginxDeployReplicas(clustername, kubeconfig, kubectl);
+        case Command.KubectlAICommand:
+            await execKubectlAICommand(clustername, kubeconfig, kubectl);
+            return;
+        case Command.BuildUpAICommandFromPreviousRun:
+            await buildUpAICommandFromPreviousRun(clustername, kubeconfig, kubectl);
             return;
     }
 }
 
-async function nginxDeployReplicas(
+async function execKubectlAICommand(
     clustername: string,
     clusterConfig: string,
     kubectl: k8s.APIAvailable<k8s.KubectlV1>) {
 
     // Identify the env var: OPENAI_API_KEY exist if not get input for ai key
     console.log(process.env.OPENAI_API_KEY);
-    let openAIKey = process.env.OPENAI_API_KEY;
+    let openAIKey = process.env.OPENAI_API_KEY ?? process.env.VSCODE_OPEN_AI_AKS_POC;
 
-    if (openAIKey == "" || openAIKey == undefined) {
+    if (openAIKey == undefined && (process.env.VSCODE_OPEN_AI_AKS_POC === '' || process.env.VSCODE_OPEN_AI_AKS_POC == undefined)) {
         const aiKey = await vscode.window.showInputBox({
             placeHolder: `Please supply a valid Open AI or Azure OpenAI Key"`
         });
-    
-        if (aiKey == '' || aiKey == undefined) {
-            vscode.window.showErrorMessage('A valid aikey is mandatory to execute this action');
+
+        if (aiKey == undefined) {
+            // vscode.window.showErrorMessage('A valid aikey is mandatory to execute this action');
             return;
         }
-
-        openAIKey = aiKey;
+        process.env.VSCODE_OPEN_AI_AKS_POC = aiKey;
+        openAIKey = aiKey || process.env.VSCODE_OPEN_AI_AKS_POC;
     }
 
     const command = await vscode.window.showInputBox({
@@ -99,7 +112,7 @@ async function nginxDeployReplicas(
         return;
     }
 
-    return await runKubectlAIGadgetCommands(clustername, openAIKey!, command, clusterConfig, kubectl);
+    return await runKubectlAIGadgetCommands(clustername, openAIKey!, command, clusterConfig, false, kubectl);
 }
 
 async function runKubectlAIGadgetCommands(
@@ -107,6 +120,7 @@ async function runKubectlAIGadgetCommands(
     aiKey: string,
     command: string,
     clusterConfig: string,
+    rePromptMode: boolean,
     kubectl: k8s.APIAvailable<k8s.KubectlV1>) {
 
     const kubectlAIPath = await getKubectlAIBinaryPath();
@@ -120,7 +134,8 @@ async function runKubectlAIGadgetCommands(
 
     await longRunning(`Running kubectl ai command on ${clustername}`,
         async () => {
-            const commandToRun = `ai  --openai-api-key "${aiKey}" "${command}" --raw`;
+            let commandToRun = `ai  --openai-api-key "${aiKey}" "${command}" --raw`;
+
             const binaryPathDir = path.dirname(kubectlAIPath.result);
 
             if (process.env.PATH === undefined) {
@@ -129,13 +144,34 @@ async function runKubectlAIGadgetCommands(
                 process.env.PATH = binaryPathDir + path.delimiter + process.env.PATH;
             }
 
+            if (rePromptMode) {
+                const data = vscode.window.activeTextEditor?.document;
+                const tmpFileName = await tmpfile.createTempFile(data?.getText()!, "YAML");
+                commandToRun = `cat ${tmpFileName} | kubectl ai  --openai-api-key "${aiKey}" "${command}" --raw`
+                shelljs.exec(commandToRun, function (code: any, stdout: any, stderr: any) {
+                    console.log('Exit code:', code);
+                    console.log('Program output:', stdout);
+                    console.log('Program stderr:', stderr);
+                    // Open data in editor.
+                    vscode.workspace.openTextDocument({
+                        content: stdout,
+                        language: "yaml"
+                    }).then(newDocument => {
+                        vscode.window.showTextDocument(newDocument);
+                    });
+                });
+
+
+                return;
+            }
+
             const kubectlresult = await tmpfile.withOptionalTempFile<Errorable<k8s.KubectlV1.ShellResult>>(
                 clusterConfig, "YAML", async (kubeConfigFile) => {
                     return await invokeKubectlCommand(kubectl, kubeConfigFile, commandToRun);
                 });
 
             if (failed(kubectlresult)) {
-                vscode.window.showWarningMessage(`kubectl ai command failed with following error: ${kubectlresult.error}`);
+                vscode.window.showWarningMessage(`kubectl-ai command failed with following error: ${kubectlresult.error}`);
                 return;
             }
 
@@ -154,5 +190,39 @@ async function runKubectlAIGadgetCommands(
         return;
     }
 
+}
 
+async function buildUpAICommandFromPreviousRun(
+    clustername: string,
+    clusterConfig: string,
+    kubectl: k8s.APIAvailable<k8s.KubectlV1>) {
+
+    // Identify the env var: OPENAI_API_KEY exist if not get input for ai key
+    console.log(process.env.OPENAI_API_KEY);
+    let openAIKey = process.env.OPENAI_API_KEY ?? process.env.VSCODE_OPEN_AI_AKS_POC;
+
+    if (openAIKey == undefined && (process.env.VSCODE_OPEN_AI_AKS_POC === '' || process.env.VSCODE_OPEN_AI_AKS_POC == undefined)) {
+        const aiKey = await vscode.window.showInputBox({
+            placeHolder: `Please supply a valid Open AI or Azure OpenAI Key"`
+        });
+
+        if (aiKey == undefined) {
+            vscode.window.showErrorMessage('A valid aikey is mandatory to execute this action');
+            return;
+        }
+        process.env.VSCODE_OPEN_AI_AKS_POC = aiKey;
+        openAIKey = aiKey || process.env.VSCODE_OPEN_AI_AKS_POC;
+    }
+
+    const command = await vscode.window.showInputBox({
+        placeHolder: `Kubectl AI Command Query here: like "create an nginx deployment with 3 replicas"`,
+        prompt: `Please enter Kubectl AI Prompt for generating manifest forexample: "create an nginx deployment with 3 replicas"`
+    });
+
+    if (command === '' || command == undefined) {
+        vscode.window.showErrorMessage('A command for kubectl ai is mandatory to execute this action');
+        return;
+    }
+
+    return await runKubectlAIGadgetCommands(clustername, openAIKey!, command, clusterConfig, true, kubectl);
 }

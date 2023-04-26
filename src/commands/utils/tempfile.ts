@@ -14,3 +14,13 @@ export async function withOptionalTempFile<T>(
         tempFile.removeCallback();
     }
 }
+
+export async function createTempFile(
+    content: string,
+    fileType: string): Promise<string> {
+    const tempFile = tmp.fileSync({ prefix: "aks-kubectl-ai-", postfix: `.${fileType}` });
+    await fs.writeFile(tempFile.name, content);
+
+    return tempFile.name;
+}
+

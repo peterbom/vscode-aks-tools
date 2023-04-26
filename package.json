@@ -262,6 +262,10 @@
             {
                 "command": "aks.aksKubectlAIDeployNginX",
                 "title": "Launch Kubectl-AI Prompt."
+            },
+            {
+                "command": "aks.aksKubectlAIRePrompt",
+                "title": "Launch Kubectl-AI RePrompt Mode."
             }
         ],
         "menus": {
@@ -496,6 +500,10 @@
                 {
                     "command": "aks.aksKubectlAIDeployNginX",
                     "group": "navigation"
+                },
+                {
+                    "command": "aks.aksKubectlAIRePrompt",
+                    "group": "navigation"
                 }
             ]
         },
@@ -608,6 +616,7 @@
         "neverthrow": "^4.3.0",
         "semver": "^7.3.7",
         "shell-exec": "^1.1.2",
+        "shelljs": "^0.8.5",
         "sinon": "^12.0.1",
         "tmp": "^0.2.1",
         "tslib": "^2.1.0",
