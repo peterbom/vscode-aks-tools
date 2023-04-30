@@ -13,7 +13,8 @@ var shelljs = require('shelljs');
 
 enum Command {
     KubectlAICommand,
-    BuildUpAICommandFromPreviousRun
+    BuildUpAICommandFromPreviousRun,
+    ResetOpenAIKey
 }
 
 export async function aksKubectlAIDeploy(
@@ -23,12 +24,12 @@ export async function aksKubectlAIDeploy(
     await checkTargetAndRunKubectlAICommand(target, Command.KubectlAICommand)
 }
 
-export async function aksKubectlAIRePrompt(
-    _context: IActionContext,
-    target: any
-): Promise<void> {
-    await checkTargetAndRunKubectlAICommand(target, Command.BuildUpAICommandFromPreviousRun)
-}
+// export async function aksKubectlAIRePrompt(
+//     _context: IActionContext,
+//     target: any
+// ): Promise<void> {
+//     await checkTargetAndRunKubectlAICommand(target, Command.BuildUpAICommandFromPreviousRun)
+// }
 
 async function checkTargetAndRunKubectlAICommand(
     target: any,
@@ -74,9 +75,9 @@ async function runKubectlAICommand(
         case Command.KubectlAICommand:
             await execKubectlAICommand(clustername, kubeconfig, kubectl);
             return;
-        case Command.BuildUpAICommandFromPreviousRun:
-            await buildUpAICommandFromPreviousRun(clustername, kubeconfig, kubectl);
-            return;
+        // case Command.BuildUpAICommandFromPreviousRun:
+        //     await buildUpAICommandFromPreviousRun(clustername, kubeconfig, kubectl);
+        //     return;
     }
 }
 
@@ -144,23 +145,34 @@ async function runKubectlAIGadgetCommands(
                 process.env.PATH = binaryPathDir + path.delimiter + process.env.PATH;
             }
 
+            if (command.startsWith("reprompt:")) {
+                rePromptMode = true;
+            }
+        
             if (rePromptMode) {
                 const data = vscode.window.activeTextEditor?.document;
-                const tmpFileName = await tmpfile.createTempFile(data?.getText()!, "YAML");
-                commandToRun = `cat ${tmpFileName} | kubectl ai  --openai-api-key "${aiKey}" "${command}" --raw`
-                shelljs.exec(commandToRun, function (code: any, stdout: any, stderr: any) {
-                    console.log('Exit code:', code);
-                    console.log('Program output:', stdout);
-                    console.log('Program stderr:', stderr);
-                    // Open data in editor.
-                    vscode.workspace.openTextDocument({
-                        content: stdout,
-                        language: "yaml"
-                    }).then(newDocument => {
-                        vscode.window.showTextDocument(newDocument);
-                    });
-                });
+                const activeEditor = vscode.window.activeTextEditor;
+                if (activeEditor) {
+                    //For Getting File Path
+                    // let filePath = activeEditor.document.uri.path;
 
+                    const tmpFileName = await tmpfile.createTempFile(data?.getText()!, "YAML");
+                    commandToRun = `cat ${tmpFileName} | kubectl ai  --openai-api-key "${aiKey}" "${command}" --raw`
+                    shelljs.exec(commandToRun, function (code: any, stdout: any, stderr: any) {
+                        console.log('Exit code:', code);
+                        console.log('Program output:', stdout);
+                        console.log('Program stderr:', stderr);
+                        // Open data in editor.
+                        vscode.workspace.openTextDocument({
+                            content: stdout,
+                            language: "yaml"
+                        }).then(newDocument => {
+                            vscode.window.showTextDocument(newDocument);
+                        });
+                    });
+                } else {
+                    vscode.window.showErrorMessage('There is no active editor or file for kubectl-ai reprompt to work');
+                }
 
                 return;
             }
@@ -190,39 +202,4 @@ async function runKubectlAIGadgetCommands(
         return;
     }
 
-}
-
-async function buildUpAICommandFromPreviousRun(
-    clustername: string,
-    clusterConfig: string,
-    kubectl: k8s.APIAvailable<k8s.KubectlV1>) {
-
-    // Identify the env var: OPENAI_API_KEY exist if not get input for ai key
-    console.log(process.env.OPENAI_API_KEY);
-    let openAIKey = process.env.OPENAI_API_KEY ?? process.env.VSCODE_OPEN_AI_AKS_POC;
-
-    if (openAIKey == undefined && (process.env.VSCODE_OPEN_AI_AKS_POC === '' || process.env.VSCODE_OPEN_AI_AKS_POC == undefined)) {
-        const aiKey = await vscode.window.showInputBox({
-            placeHolder: `Please supply a valid Open AI or Azure OpenAI Key"`
-        });
-
-        if (aiKey == undefined) {
-            vscode.window.showErrorMessage('A valid aikey is mandatory to execute this action');
-            return;
-        }
-        process.env.VSCODE_OPEN_AI_AKS_POC = aiKey;
-        openAIKey = aiKey || process.env.VSCODE_OPEN_AI_AKS_POC;
-    }
-
-    const command = await vscode.window.showInputBox({
-        placeHolder: `Kubectl AI Command Query here: like "create an nginx deployment with 3 replicas"`,
-        prompt: `Please enter Kubectl AI Prompt for generating manifest forexample: "create an nginx deployment with 3 replicas"`
-    });
-
-    if (command === '' || command == undefined) {
-        vscode.window.showErrorMessage('A command for kubectl ai is mandatory to execute this action');
-        return;
-    }
-
-    return await runKubectlAIGadgetCommands(clustername, openAIKey!, command, clusterConfig, true, kubectl);
 }

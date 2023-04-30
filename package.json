@@ -260,12 +260,8 @@
                 "title": "Snapshot Socket"
             },
             {
-                "command": "aks.aksKubectlAIDeployNginX",
-                "title": "Launch Kubectl-AI Prompt."
-            },
-            {
-                "command": "aks.aksKubectlAIRePrompt",
-                "title": "Launch Kubectl-AI RePrompt Mode."
+                "command": "aks.aksKubectlAIDeploy",
+                "title": "Launch Kubectl-AI Prompt"
             }
         ],
         "menus": {
@@ -498,11 +494,7 @@
             ],
             "aks.kubectlAISubMenu": [
                 {
-                    "command": "aks.aksKubectlAIDeployNginX",
-                    "group": "navigation"
-                },
-                {
-                    "command": "aks.aksKubectlAIRePrompt",
+                    "command": "aks.aksKubectlAIDeploy",
                     "group": "navigation"
                 }
             ]
