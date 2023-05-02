@@ -332,7 +332,7 @@
                 },
                 {
                     "submenu": "aks.kubectlAISubMenu",
-                    "when": "view == kubernetes.cloudExplorer && viewItem =~ /aks\\.cluster/i || view == extension.vsKubernetesExplorer && viewItem =~ /vsKubernetes\\.\\w*cluster$/i",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem =~ /vsKubernetes\\.\\w*cluster$/i",
                     "group": "9@5"
                 }
             ],
@@ -542,7 +542,7 @@
             },
             {
                 "id": "aks.kubectlAISubMenu",
-                "label": "Run Kubectl AI Commands"
+                "label": "Run Kubectl AI Commands (beta)"
             }
         ]
     },

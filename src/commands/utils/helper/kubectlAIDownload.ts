@@ -38,27 +38,16 @@ function getArchiveFilename() {
         architecture = 'amd64';
     }
 
-    // win32 is not supported?
-    // if (operatingSystem === 'win32') {
-    //     operatingSystem = 'win';
-    // }
-
     return `kubectl-ai_${operatingSystem}_${architecture}.tar.gz`;
 }
 
 function getPathToBinaryInArchive() {
    let architecture = os.arch();
-   // let operatingSystem = os.platform().toLocaleLowerCase();
 
    if (architecture === 'x64') {
        architecture = 'amd64';
    }
 
    let extension = '';
-//    if (operatingSystem === 'win32') {
-//        operatingSystem = 'windows';
-//        extension = '.exe'
-//    }
-
    return path.join(`kubectl-ai${extension}`);
 }

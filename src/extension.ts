@@ -84,7 +84,6 @@ export async function activate(context: vscode.ExtensionContext) {
         registerCommandWithTelemetry('aks.aksInspektorGadgetSnapshotProcess', aksInspektorGadgetSnapshotProcess);
         registerCommandWithTelemetry('aks.aksInspektorGadgetSnapshotSocket', aksInspektorGadgetSnapshotSocket);
         registerCommandWithTelemetry('aks.aksKubectlAIDeploy', aksKubectlAIDeploy);
-        // registerCommandWithTelemetry('aks.aksKubectlAIRePrompt', aksKubectlAIRePrompt);
 
         await registerAzureServiceNodes(context);
 

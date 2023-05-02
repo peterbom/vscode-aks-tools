@@ -12,9 +12,7 @@ import { invokeKubectlCommand } from '../utils/kubectl';
 var shelljs = require('shelljs');
 
 enum Command {
-    KubectlAICommand,
-    BuildUpAICommandFromPreviousRun,
-    ResetOpenAIKey
+    KubectlAICommand
 }
 
 export async function aksKubectlAIDeploy(
@@ -23,13 +21,6 @@ export async function aksKubectlAIDeploy(
 ): Promise<void> {
     await checkTargetAndRunKubectlAICommand(target, Command.KubectlAICommand)
 }
-
-// export async function aksKubectlAIRePrompt(
-//     _context: IActionContext,
-//     target: any
-// ): Promise<void> {
-//     await checkTargetAndRunKubectlAICommand(target, Command.BuildUpAICommandFromPreviousRun)
-// }
 
 async function checkTargetAndRunKubectlAICommand(
     target: any,
@@ -75,9 +66,6 @@ async function runKubectlAICommand(
         case Command.KubectlAICommand:
             await execKubectlAICommand(clustername, kubeconfig, kubectl);
             return;
-        // case Command.BuildUpAICommandFromPreviousRun:
-        //     await buildUpAICommandFromPreviousRun(clustername, kubeconfig, kubectl);
-        //     return;
     }
 }
 
@@ -96,7 +84,6 @@ async function execKubectlAICommand(
         });
 
         if (aiKey == undefined) {
-            // vscode.window.showErrorMessage('A valid aikey is mandatory to execute this action');
             return;
         }
         process.env.VSCODE_OPEN_AI_AKS_POC = aiKey;
@@ -104,11 +91,11 @@ async function execKubectlAICommand(
     }
 
     const command = await vscode.window.showInputBox({
-        placeHolder: `Kubectl AI Command Query here: like "create an nginx deployment with 3 replicas"`,
-        prompt: `Please enter Kubectl AI Prompt for generating manifest forexample: "create an nginx deployment with 3 replicas"`
+        placeHolder: `Kubectl AI Command Query here: like "create an nginx deployment with 3 replicas".`,
+        prompt: `Please enter Kubectl AI Prompt for generating manifest forexample: "create an nginx deployment with 3 replicas \n OR use "Reprompt" mode usimg "reprompt:" followed by build up sensence"`
     });
 
-    if (command === '' || command == undefined) {
+    if (command == undefined) {
         vscode.window.showErrorMessage('A command for kubectl ai is mandatory to execute this action');
         return;
     }
@@ -153,16 +140,13 @@ async function runKubectlAIGadgetCommands(
                 const data = vscode.window.activeTextEditor?.document;
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    //For Getting File Path
-                    // let filePath = activeEditor.document.uri.path;
-
                     const tmpFileName = await tmpfile.createTempFile(data?.getText()!, "YAML");
                     commandToRun = `cat ${tmpFileName} | kubectl ai  --openai-api-key "${aiKey}" "${command}" --raw`
                     shelljs.exec(commandToRun, function (code: any, stdout: any, stderr: any) {
-                        console.log('Exit code:', code);
-                        console.log('Program output:', stdout);
-                        console.log('Program stderr:', stderr);
-                        // Open data in editor.
+                        if (stderr && code !== 0) {
+                            vscode.window.showErrorMessage(`There is an error with reprompt kubectl-ai command: ${stderr}`);
+                            return;
+                        }
                         vscode.workspace.openTextDocument({
                             content: stdout,
                             language: "yaml"
