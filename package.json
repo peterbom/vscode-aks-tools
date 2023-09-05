@@ -552,6 +552,7 @@
         "@azure/ms-rest-azure-env": "^2.0.0",
         "@azure/msal-node": "^1.14.3",
         "@azure/storage-blob": "^12.7.0",
+        "@kubernetes/client-node": "^0.18.1",
         "@microsoft/microsoft-graph-client": "^3.0.4",
         "@microsoft/vscode-azext-azureutils": "^0.3.1",
         "@microsoft/vscode-azext-utils": "^0.3.8",
