@@ -1,46 +1,46 @@
 import { MessageHandler } from "../../../src/webview-contract/messaging";
-import { InitialState, ToVsCodeMsgDef } from "../../../src/webview-contract/webviewDefinitions/kubectl";
+import { CommandCategory, InitialState, PresetCommand, ToVsCodeMsgDef } from "../../../src/webview-contract/webviewDefinitions/kubectl";
 import { Kubectl } from "../Kubectl/Kubectl";
 import { Scenario } from "../utilities/manualTest";
 import { getTestVscodeMessageContext } from "../utilities/vscode";
 
-const sampleGetPodsOutput = `
-NAMESPACE       NAME                                  READY   STATUS    RESTARTS        AGE
-testing         test-pod-dgqd5                        1/1     Running   0               3d21h
-testing         test-pod--ffxtr                       1/1     Running   0               3d21h
-prod            website-c5hsq                         1/1     Running   0               19d
-prod            website-pwghh                         1/1     Running   1 (5d13h ago)   19d
-`;
+const customCommands: PresetCommand[] = [
+    {name: "Test 1", command: "get things", category: CommandCategory.Custom},
+    {name: "Test 2", command: "get other things", category: CommandCategory.Custom}
+];
 
 export function getKubectlScenarios() {
     const clusterName = "test-cluster";
     const initialState: InitialState = {
         clusterName,
-        command: "get pods -A"
+        customCommands
     }
 
     const webview = getTestVscodeMessageContext<"kubectl">();
 
     function getMessageHandler(succeeding: boolean): MessageHandler<ToVsCodeMsgDef> {
         return {
-            runCommandRequest: args => handleRunCommandRequest(args.command, succeeding)
+            runCommandRequest: args => handleRunCommandRequest(args.command, succeeding),
+            addCustomCommandRequest: _ => undefined,
+            deleteCustomCommandRequest: _ => undefined
         }
     }
 
-    async function handleRunCommandRequest(_command: string, succeeding: boolean) {
+    async function handleRunCommandRequest(command: string, succeeding: boolean) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         if (succeeding) {
             webview.postMessage({
                 command: "runCommandResponse",
                 parameters: {
-                    output: sampleGetPodsOutput
+                    output: Array.from({length: 20}, (_, i) => `This is the output of "kubectl ${command}" line ${i + 1}`).join('\n')
                 }
             });
         } else {
             webview.postMessage({
                 command: "runCommandResponse",
                 parameters: {
-                    errorMessage: "Something went wrong and this is the error."
+                    errorMessage: "Something went wrong and this is the error.",
+                    explanation: "And here's a natural language explanation of what went wrong."
                 }
             });
         }
