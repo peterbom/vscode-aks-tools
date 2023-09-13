@@ -3,9 +3,9 @@ import styles from "./Kubectl.module.css";
 
 export interface CommandOutputProps {
     isCommandRunning: boolean
-    output?: string
-    errorMessage?: string
-    explanation?: string
+    output: string | null
+    errorMessage: string | null
+    explanation: string | null
 }
 
 export function CommandOutput(props: CommandOutputProps) {
