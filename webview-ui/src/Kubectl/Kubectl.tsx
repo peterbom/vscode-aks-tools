@@ -1,5 +1,5 @@
 import { VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
-import { CommandCategory, InitialState, PresetCommand, presetCommands } from "../../../src/webview-contract/webviewDefinitions/kubectl";
+import { AIKeyStatus, CommandCategory, InitialState, PresetCommand, presetCommands } from "../../../src/webview-contract/webviewDefinitions/kubectl";
 import styles from "./Kubectl.module.css";
 import { getWebviewMessageContext } from "../utilities/vscode";
 import { useEffect, useState } from "react";
@@ -9,12 +9,16 @@ import { CommandOutput } from "./CommandOutput";
 import { SaveCommandDialog } from "./SaveCommandDialog";
 
 interface KubectlState {
+    initializationStarted: boolean
     allCommands: PresetCommand[]
     selectedCommand: string | null
     isCommandRunning: boolean
     output: string | null
     errorMessage: string | null
     explanation: string | null
+    isExplanationStreaming: boolean
+    aiKeyStatus: AIKeyStatus
+    invalidAIKey: string | null
     isSaveDialogShown: boolean
 }
 
@@ -22,18 +26,32 @@ export function Kubectl(props: InitialState) {
     const vscode = getWebviewMessageContext<"kubectl">();
 
     const [state, setState] = useState<KubectlState>({
+        initializationStarted: false,
         allCommands: [...presetCommands, ...props.customCommands],
         selectedCommand: null,
         isCommandRunning: false,
         output: null,
         errorMessage: null,
         explanation: null,
+        isExplanationStreaming: false,
+        aiKeyStatus: AIKeyStatus.Unverified,
+        invalidAIKey: null,
         isSaveDialogShown: false
     });
 
     useEffect(() => {
+        if (!state.initializationStarted) {
+            setState({...state, initializationStarted: true});
+            vscode.postMessage({ command: "getAIKeyStatus", parameters: undefined });
+        }
+
         vscode.subscribeToMessages({
-            runCommandResponse: args => setState({...state, output: args.output, errorMessage: args.errorMessage, explanation: args.explanation, isCommandRunning: false})
+            runCommandResponse: args => setState({...state, output: args.output, errorMessage: args.errorMessage, explanation: null, isCommandRunning: false}),
+            startExplanation: _args => setState({...state, isExplanationStreaming: true}),
+            errorStreamingExplanation: args => console.error(args.error),
+            appendExplanation: args => setState({...state, explanation: (state.explanation || "") + args.chunk}),
+            completeExplanation: _args => setState({...state, isExplanationStreaming: false}),
+            updateAIKeyStatus: args => setState({...state, aiKeyStatus: args.keyStatus, invalidAIKey: args.invalidKey})
         });
     });
 
@@ -80,6 +98,10 @@ export function Kubectl(props: InitialState) {
         vscode.postMessage({ command: "addCustomCommandRequest", parameters: newCommand });
     }
 
+    function handleUpdateAPIKey() {
+        setState({...state, aiKeyStatus: AIKeyStatus.Unverified, invalidAIKey: null});
+    }
+
     const allCommandNames = state.allCommands.map(cmd => cmd.name);
     const commandLookup = Object.fromEntries(state.allCommands.map(cmd => [cmd.command, cmd]));
     const matchesExisting = state.selectedCommand != null ? state.selectedCommand.trim() in commandLookup : false;
@@ -96,7 +118,16 @@ export function Kubectl(props: InitialState) {
         <div className={styles.mainContent}>
             <CommandInput command={state.selectedCommand || ''} matchesExisting={matchesExisting} onCommandUpdate={handleCommandUpdate} onRunCommand={handleRunCommand} onSaveRequest={handleSaveRequest} />
             <VSCodeDivider />
-            <CommandOutput isCommandRunning={state.isCommandRunning} output={state.output} errorMessage={state.errorMessage} explanation={state.explanation}/>
+            <CommandOutput
+                isCommandRunning={state.isCommandRunning}
+                output={state.output}
+                errorMessage={state.errorMessage}
+                explanation={state.explanation}
+                isExplanationStreaming={state.isExplanationStreaming}
+                aiKeyStatus={state.aiKeyStatus}
+                invalidAIKey={state.invalidAIKey}
+                onUpdateAPIKey={handleUpdateAPIKey}
+            />
         </div>
 
         <SaveCommandDialog isShown={state.isSaveDialogShown} existingNames={allCommandNames} onCancel={handleSaveDialogCancel} onAccept={handleSaveDialogAccept} />
