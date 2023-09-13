@@ -45,7 +45,7 @@ export class KubectlDataProvider implements PanelDataProvider<"kubectl"> {
         const kubectlresult = await invokeKubectlCommand(this.kubectl, this.kubeConfigFilePath, command);
 
         if (failed(kubectlresult)) {
-            const aiMsg = await openaiHelper(kubectlresult);
+            const aiMsg = await openaiHelper(kubectlresult.error);
             const explanation = aiMsg ? `OpenAI GPT-3 Suggestion: ${aiMsg}` : null;
             webview.postMessage({
                 command: "runCommandResponse", parameters: {
