@@ -1,88 +1,62 @@
 import { VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
-import { AIKeyStatus, CommandCategory, InitialState, PresetCommand, presetCommands } from "../../../src/webview-contract/webviewDefinitions/kubectl";
+import { CommandCategory, InitialState, PresetCommand, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/kubectl";
 import styles from "./Kubectl.module.css";
 import { getWebviewMessageContext } from "../utilities/vscode";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { CommandList } from "./CommandList";
 import { CommandInput } from "./CommandInput";
 import { CommandOutput } from "./CommandOutput";
 import { SaveCommandDialog } from "./SaveCommandDialog";
-
-interface KubectlState {
-    initializationStarted: boolean
-    allCommands: PresetCommand[]
-    selectedCommand: string | null
-    isCommandRunning: boolean
-    output: string | null
-    errorMessage: string | null
-    explanation: string | null
-    isExplanationStreaming: boolean
-    aiKeyStatus: AIKeyStatus
-    invalidAIKey: string | null
-    isSaveDialogShown: boolean
-}
+import { createState, updateState, userMessageHandler, vscodeMessageHandler } from "./helpers/state";
+import { getEventHandlers, getMessageHandler } from "../utilities/state";
+import { UserMsgDef } from "./helpers/userCommands";
 
 export function Kubectl(props: InitialState) {
     const vscode = getWebviewMessageContext<"kubectl">();
 
-    const [state, setState] = useState<KubectlState>({
-        initializationStarted: false,
-        allCommands: [...presetCommands, ...props.customCommands],
-        selectedCommand: null,
-        isCommandRunning: false,
-        output: null,
-        errorMessage: null,
-        explanation: null,
-        isExplanationStreaming: false,
-        aiKeyStatus: AIKeyStatus.Unverified,
-        invalidAIKey: null,
-        isSaveDialogShown: false
-    });
+    const [state, dispatch] = useReducer(updateState, createState(props.customCommands));
 
     useEffect(() => {
         if (!state.initializationStarted) {
-            setState({...state, initializationStarted: true});
+            dispatch({ command: "setInitializing" });
             vscode.postMessage({ command: "getAIKeyStatus", parameters: undefined });
         }
 
-        vscode.subscribeToMessages({
-            runCommandResponse: args => setState({...state, output: args.output, errorMessage: args.errorMessage, explanation: null, isCommandRunning: false}),
-            startExplanation: _args => setState({...state, isExplanationStreaming: true}),
-            errorStreamingExplanation: args => console.error(args.error),
-            appendExplanation: args => setState({...state, explanation: (state.explanation || "") + args.chunk}),
-            completeExplanation: _args => setState({...state, isExplanationStreaming: false}),
-            updateAIKeyStatus: args => setState({...state, aiKeyStatus: args.keyStatus, invalidAIKey: args.invalidKey})
-        });
+        const msgHandler = getMessageHandler<ToWebViewMsgDef>(dispatch, vscodeMessageHandler);
+        vscode.subscribeToMessages(msgHandler);
     });
 
+    const userMessageEventHandlers = getEventHandlers<UserMsgDef>(dispatch, userMessageHandler);
+
     function handleCommandSelectionChanged(command: PresetCommand) {
-        setState({...state, selectedCommand: command.command, output: null, errorMessage: null, explanation: null});
+        userMessageEventHandlers.onSetSelectedCommand({ command: command.command });
     }
 
     function handleCommandDelete(commandName: string) {
         const allCommands = state.allCommands.filter(cmd => cmd.name !== commandName);
-        setState({...state, allCommands});
+        userMessageEventHandlers.onSetAllCommands({ allCommands });
         vscode.postMessage({ command: "deleteCustomCommandRequest", parameters: {name: commandName} });
     }
 
     function handleCommandUpdate(command: string) {
-        setState({...state, selectedCommand: command});
+        userMessageEventHandlers.onSetSelectedCommand({ command });
     }
 
     function handleRunCommand(command: string) {
-        setState({...state, isCommandRunning: true, output: null, errorMessage: null, explanation: null});
+        userMessageEventHandlers.onSetCommandRunning();
         vscode.postMessage({ command: "runCommandRequest", parameters: {command: command.trim()} });
     }
 
     function handleSaveRequest() {
-        setState({...state, isSaveDialogShown: true});
+        userMessageEventHandlers.onSetSaveDialogVisibility({ shown: true });
     }
 
     function handleSaveDialogCancel() {
-        setState({...state, isSaveDialogShown: false});
+        userMessageEventHandlers.onSetSaveDialogVisibility({ shown: false });
     }
 
     function handleSaveDialogAccept(commandName: string) {
+        userMessageEventHandlers.onSetSaveDialogVisibility({ shown: false });
         if (!state.selectedCommand) {
             return;
         }
@@ -94,12 +68,8 @@ export function Kubectl(props: InitialState) {
         };
 
         const allCommands = [...state.allCommands, newCommand].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-        setState({...state, allCommands, isSaveDialogShown: false});
+        userMessageEventHandlers.onSetAllCommands({ allCommands });
         vscode.postMessage({ command: "addCustomCommandRequest", parameters: newCommand });
-    }
-
-    function handleUpdateAPIKey() {
-        setState({...state, aiKeyStatus: AIKeyStatus.Unverified, invalidAIKey: null});
     }
 
     const allCommandNames = state.allCommands.map(cmd => cmd.name);
@@ -126,7 +96,7 @@ export function Kubectl(props: InitialState) {
                 isExplanationStreaming={state.isExplanationStreaming}
                 aiKeyStatus={state.aiKeyStatus}
                 invalidAIKey={state.invalidAIKey}
-                onUpdateAPIKey={handleUpdateAPIKey}
+                userMessageHandlers={userMessageEventHandlers}
             />
         </div>
 

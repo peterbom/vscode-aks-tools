@@ -3,6 +3,8 @@ import styles from "./Kubectl.module.css";
 import { FormEvent, useState } from "react";
 import { getWebviewMessageContext } from "../utilities/vscode";
 import { AIKeyStatus } from "../../../src/webview-contract/webviewDefinitions/kubectl";
+import { EventHandlers } from "../utilities/state";
+import { UserMsgDef } from "./helpers/userCommands";
 
 type ChangeEvent = Event | FormEvent<HTMLElement>;
 
@@ -11,7 +13,7 @@ export interface OpenAIOutputProps {
     isExplanationStreaming: boolean
     aiKeyStatus: AIKeyStatus
     invalidAIKey: string | null
-    onUpdateAPIKey: (apiKey: string) => void
+    userMessageHandlers: EventHandlers<UserMsgDef>
 }
 
 export function OpenAIOutput(props: OpenAIOutputProps) {
@@ -26,7 +28,7 @@ export function OpenAIOutput(props: OpenAIOutputProps) {
 
     function handleUpdateClick() {
         vscode.postMessage({ command: "updateAIKeyRequest", parameters: {apiKey} });
-        props.onUpdateAPIKey(apiKey);
+        props.userMessageHandlers.onSetAPIKeySaved();
     }
 
     const canUpdate = apiKey && apiKey.trim() && apiKey.trim() !== props.invalidAIKey;
@@ -38,9 +40,11 @@ export function OpenAIOutput(props: OpenAIOutputProps) {
                 <div>
                     {props.aiKeyStatus === AIKeyStatus.Invalid && <p>OpenAI API Key is invalid</p>}
                     {props.aiKeyStatus === AIKeyStatus.Missing && <p>OpenAI API Key is not set</p>}
-                    <label htmlFor="api-key-input">API Key:</label>
-                    <VSCodeTextField id="api-key-input" value={apiKey} onInput={handleAPIKeyChange} />
-                    <VSCodeButton disabled={!canUpdate} onClick={handleUpdateClick}>{props.invalidAIKey ? 'Update' : 'Set'}</VSCodeButton>
+                    <div className={styles.labelTextButton}>
+                        <label htmlFor="api-key-input">API Key:</label>
+                        <VSCodeTextField id="api-key-input" value={apiKey} onInput={handleAPIKeyChange} />
+                        <VSCodeButton disabled={!canUpdate} onClick={handleUpdateClick}>{props.invalidAIKey ? 'Update' : 'Set'}</VSCodeButton>
+                    </div>
                 </div>
             )}
             {props.explanation && <pre className={styles.explanation}>{props.explanation}</pre>}

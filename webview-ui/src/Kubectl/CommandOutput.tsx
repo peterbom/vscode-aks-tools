@@ -2,6 +2,8 @@ import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react";
 import styles from "./Kubectl.module.css";
 import { OpenAIOutput } from "./OpenAIOutput";
 import { AIKeyStatus } from "../../../src/webview-contract/webviewDefinitions/kubectl";
+import { EventHandlers } from "../utilities/state";
+import { UserMsgDef } from "./helpers/userCommands";
 
 export interface CommandOutputProps {
     isCommandRunning: boolean
@@ -11,7 +13,7 @@ export interface CommandOutputProps {
     isExplanationStreaming: boolean
     aiKeyStatus: AIKeyStatus
     invalidAIKey: string | null
-    onUpdateAPIKey: (apiKey: string) => void
+    userMessageHandlers: EventHandlers<UserMsgDef>
 }
 
 export function CommandOutput(props: CommandOutputProps) {
@@ -28,7 +30,7 @@ export function CommandOutput(props: CommandOutputProps) {
             isExplanationStreaming={props.isExplanationStreaming}
             aiKeyStatus={props.aiKeyStatus}
             invalidAIKey={props.invalidAIKey}
-            onUpdateAPIKey={props.onUpdateAPIKey}
+            userMessageHandlers={props.userMessageHandlers}
         />
     </>
     );

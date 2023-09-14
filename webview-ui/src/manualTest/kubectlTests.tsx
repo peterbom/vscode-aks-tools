@@ -81,11 +81,12 @@ export function getKubectlScenarios() {
     }
 
     function handleGetAIKeyStatus() {
-        webview.postMessage({ command: "updateAIKeyStatus", parameters: {keyStatus: apiKeyStatus, invalidKey: null} });
+        webview.postMessage({ command: "updateAIKeyStatus", parameters: {keyStatus: apiKeyStatus, invalidKey: apiKeyStatus === AIKeyStatus.Invalid ? apiKey : null} });
     }
 
     function handleUpdateAIKeyRequest(newApiKey: string) {
         apiKey = newApiKey;
+        updateAIKeyStatus(AIKeyStatus.Unverified, null);
     }
 
     function updateAIKeyStatus(keyStatus: AIKeyStatus, invalidKey: string | null) {
