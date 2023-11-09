@@ -1,3 +1,5 @@
+import { Maybe, just, nothing } from "./maybe";
+
 export type Lookup<T> = {
     [key: string]: T;
 };
@@ -15,6 +17,44 @@ export function replaceItem<T>(items: T[], predicate: (item: T) => boolean, repl
 
     const newItem = replacer(items[index]);
     return [...items.slice(0, index), newItem, ...items.slice(index + 1)];
+}
+
+export type ItemKey = { [key: string]: string } | string;
+
+export function updateValues<TKey extends ItemKey, TItem>(
+    items: TItem[],
+    updatedKeys: TKey[],
+    keyFn: (item: TItem) => TKey,
+    itemFn: (key: TKey) => TItem,
+): TItem[] {
+    const lookup = asLookup(items, keyFn);
+    return updatedKeys.map((key) => {
+        const keyId = getKeyId(key);
+        return keyId in lookup ? lookup[keyId] : itemFn(key);
+    });
+}
+
+export function tryGetByKey<TKey extends ItemKey, TItem>(
+    items: TItem[],
+    key: TKey,
+    keyFn: (item: TItem) => TKey,
+): Maybe<TItem> {
+    const item = items.find((item) => getKeyId(keyFn(item)) === getKeyId(key));
+    return item ? just(item) : nothing();
+}
+
+export function tryGet<T>(items: T[], predicate: (item: T) => boolean): Maybe<T> {
+    const item = items.find(predicate);
+    return item ? just(item) : nothing();
+}
+
+export function getOrThrow<T>(items: T[], predicate: (item: T) => boolean, messageIfMissing: string): T {
+    const item = items.find(predicate);
+    if (!item) {
+        throw new Error(messageIfMissing);
+    }
+
+    return item;
 }
 
 export function distinct(items: string[]) {

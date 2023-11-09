@@ -54,3 +54,11 @@ export function map<T1, T2>(l: Lazy<T1>, fn: (f: T1) => T2): Lazy<T2> {
 
     return newLoaded(fn(l.value));
 }
+
+export function bind<T1, T2>(l: Lazy<T1>, fn: (f: T1) => Lazy<T2>): Lazy<T2> {
+    if (!isLoaded(l)) {
+        return l;
+    }
+
+    return fn(l.value);
+}
