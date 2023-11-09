@@ -2,6 +2,7 @@
     display: grid;
     grid-template-columns: 8rem 20rem 8rem;
     grid-gap: 1rem;
+    padding-bottom: 0.5rem;
 }
 
 .inputContainer .label {
@@ -27,4 +28,11 @@
 .infoIndicator {
     color: var(--vscode-editorInfo-foreground);
     padding-right: 5px;
+}
+
+.buttonContainer {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
 }

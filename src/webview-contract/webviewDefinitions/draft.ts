@@ -1,57 +1,67 @@
 import { WebviewDefinition } from "../webviewTypes";
 
-export type BuildConfigState = {
+export type SavedBuildConfig = {
     dockerfilePath: string;
     dockerContextPath: string;
     port: number | null;
 };
 
-export type RepositoryDefinition = {
+export type SavedRepositoryDefinition = {
     resourceGroup: string;
     acrName: string;
     repositoryName: string;
     builtTags: string[];
 };
 
-export type ClusterDefinition = {
+export type SavedClusterDefinition = {
     resourceGroup: string;
     name: string;
 };
 
-export type AzureResourceState = {
+export type Subscription = {
+    id: string;
+    name: string;
+};
+
+export type SavedAzureResources = {
     // Both ACR and cluster need to be in the same subscription for Draft functionality to work.
-    subscriptionId: string;
-    clusterDefinition: ClusterDefinition | null;
-    repositoryDefinition: RepositoryDefinition | null;
+    subscription: Subscription;
+    clusterDefinition: SavedClusterDefinition | null;
+    repositoryDefinition: SavedRepositoryDefinition | null;
 };
 
 export const deploymentSpecTypes = ["helm", "kustomize", "manifests"] as const;
 export type DeploymentSpecType = typeof deploymentSpecTypes[number];
 
-export type DeploymentSpecState = {
+export type SavedDeploymentSpec = {
     type: DeploymentSpecType;
     path: string;
 };
 
-export type GitHubWorkflowState = {
+export type SavedGitHubWorkflow = {
     workflowPath: string;
 };
 
-export type ServiceState = {
-    appName: string;
-    buildConfig: BuildConfigState | null;
-    deploymentSpec: DeploymentSpecState | null;
-    gitHubWorkflow: GitHubWorkflowState | null;
+export type SavedService = {
+    name: string;
+    buildConfig: SavedBuildConfig | null;
+    deploymentSpec: SavedDeploymentSpec | null;
+    gitHubWorkflow: SavedGitHubWorkflow | null;
 };
 
 export interface InitialState {
     workspaceName: string;
-    azureResources: AzureResourceState | null;
-    services: ServiceState[];
+    savedAzureResources: SavedAzureResources | null;
+    savedServices: SavedService[];
 }
 
-export type ToWebViewMsgDef = {};
+export type ToWebViewMsgDef = {
+    getSubscriptionsResponse: Subscription[];
+};
 
-export type ToVsCodeMsgDef = {};
+export type ToVsCodeMsgDef = {
+    createNewService: string;
+    getSubscriptionsRequest: void;
+};
 
 export type DraftDefinition = WebviewDefinition<InitialState, ToVsCodeMsgDef, ToWebViewMsgDef>;
