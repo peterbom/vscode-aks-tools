@@ -10,7 +10,6 @@ export type SavedRepositoryDefinition = {
     resourceGroup: string;
     acrName: string;
     repositoryName: string;
-    builtTags: string[];
 };
 
 export type SavedClusterDefinition = {
@@ -57,11 +56,27 @@ export interface InitialState {
 
 export type ToWebViewMsgDef = {
     getSubscriptionsResponse: Subscription[];
+    getResourceGroupsResponse: {
+        subscriptionId: string;
+        groups: string[];
+    };
+    getBuiltTagsResponse: {
+        subscriptionId: string;
+        acrName: string;
+        repositoryName: string;
+        tags: string[];
+    };
 };
 
 export type ToVsCodeMsgDef = {
     createNewService: string;
     getSubscriptionsRequest: void;
+    getResourceGroupsRequest: string;
+    getBuiltTagsRequest: {
+        subscriptionId: string;
+        acrName: string;
+        repositoryName: string;
+    };
 };
 
 export type DraftDefinition = WebviewDefinition<InitialState, ToVsCodeMsgDef, ToWebViewMsgDef>;

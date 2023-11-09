@@ -1,5 +1,5 @@
 import styles from "./Draft.module.css";
-import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
+import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
 import { InitialState } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { getStateManagement } from "../utilities/state";
 import { stateUpdater, vscode } from "./state";
@@ -22,6 +22,20 @@ export function Draft(initialState: InitialState) {
         if (isNotLoaded(state.azureResources.availableSubscriptions)) {
             vscode.postGetSubscriptionsRequest();
             eventHandlers.onSetSubscriptionsLoading();
+        }
+
+        if (state.azureResources.selectedSubscription && isNotLoaded(state.azureResources.availableResourceGroups)) {
+            vscode.postGetResourceGroupsRequest(state.azureResources.selectedSubscription.id);
+            eventHandlers.onSetResourceGroupsLoading();
+        }
+
+        if (state.azureResources.selectedSubscription && state.azureResources.repositoryDefinition && isNotLoaded(state.azureResources.builtTags)) {
+            vscode.postGetBuiltTagsRequest({
+                subscriptionId: state.azureResources.selectedSubscription.id,
+                acrName: state.azureResources.repositoryDefinition.acrName,
+                repositoryName: state.azureResources.repositoryDefinition.repositoryName
+            });
+            eventHandlers.onSetBuiltTagsLoading();
         }
     });
 
@@ -48,6 +62,8 @@ export function Draft(initialState: InitialState) {
                 eventHandlers={eventHandlers}
             />
         )}
+
+        <VSCodeDivider style={{paddingBottom: "0.5rem"}}/>
 
         <div className={styles.inputContainer}>
             {state.services.length === 0 && (

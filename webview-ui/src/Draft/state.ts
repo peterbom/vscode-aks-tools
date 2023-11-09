@@ -9,14 +9,21 @@ export type EventDef = {
     createNewService: string;
     setSelectedService: string | null;
     setSubscriptionsLoading: void;
+    setResourceGroupsLoading: void;
     setSubscription: Subscription | null;
+    setRepositoryDialogShown: boolean;
+    setRepository: SavedRepositoryDefinition | null;
+    setBuiltTagsLoading: void;
 };
 
 export type AzureResourcesState = {
     availableSubscriptions: Lazy<Subscription[]>;
     selectedSubscription: Subscription | null;
+    availableResourceGroups: Lazy<string[]>;
     clusterDefinition: SavedClusterDefinition | null;
     repositoryDefinition: SavedRepositoryDefinition | null;
+    isRepositoryDialogShown: boolean;
+    builtTags: Lazy<string[]>;
 };
 
 export type ServicesState = SavedService;
@@ -36,14 +43,20 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
             selectedSubscription: initialState.savedAzureResources?.subscription || null,
             clusterDefinition: initialState.savedAzureResources?.clusterDefinition || null,
             repositoryDefinition: initialState.savedAzureResources?.repositoryDefinition || null,
-            availableSubscriptions: newNotLoaded()
+            availableSubscriptions: newNotLoaded(),
+            availableResourceGroups: newNotLoaded(),
+            isRepositoryDialogShown: false,
+            builtTags: newNotLoaded()
         },
         services: initialState.savedServices,
         selectedService: initialState.savedServices.length === 1 ? initialState.savedServices[0].name : null,
         isNewServiceDialogShown: false
     }),
     vscodeMessageHandler: {
-        getSubscriptionsResponse: (state, subs) => ({...state, azureResources: {...state.azureResources, availableSubscriptions: newLoaded(subs)}})
+        getSubscriptionsResponse: (state, subs) => ({...state, azureResources: {...state.azureResources, availableSubscriptions: newLoaded(subs)}}),
+        // TODO: Check args match selected
+        getResourceGroupsResponse: (state, args) => ({...state, azureResources: {...state.azureResources, availableResourceGroups: newLoaded(args.groups)}}),
+        getBuiltTagsResponse: (state, args) => ({...state, azureResources: {...state.azureResources, builtTags: newLoaded(args.tags)}})
     },
     eventHandler: {
         setNewServiceDialogShown: (state, shown) => ({...state, isNewServiceDialogShown: shown}),
@@ -55,7 +68,11 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
         }]}),
         setSelectedService: (state, selectedService) => ({...state, selectedService}),
         setSubscriptionsLoading: (state) => ({...state, azureResources: {...state.azureResources, availableSubscriptions: newLoading()}}),
-        setSubscription: (state, subscription) => ({...state, azureResources: {...state.azureResources, selectedSubscription: subscription, clusterDefinition: null, repositoryDefinition: null}})
+        setResourceGroupsLoading: (state) => ({...state, azureResources: {...state.azureResources, availableResourceGroups: newLoading()}}),
+        setSubscription: (state, subscription) => ({...state, azureResources: {...state.azureResources, selectedSubscription: subscription, clusterDefinition: null, repositoryDefinition: null}}),
+        setRepositoryDialogShown: (state, shown) => ({...state, azureResources: {...state.azureResources, isRepositoryDialogShown: shown}}),
+        setRepository: (state, repositoryDefinition) => ({...state, azureResources: {...state.azureResources, repositoryDefinition}}),
+        setBuiltTagsLoading: (state) => ({...state, azureResources: {...state.azureResources, builtTags: newLoading()}})
     }
 };
 
@@ -65,5 +82,7 @@ function updateServices(services: ServicesState[], serviceName: string, updater:
 
 export const vscode = getWebviewMessageContext<"draft">({
     createNewService: null,
-    getSubscriptionsRequest: null
+    getSubscriptionsRequest: null,
+    getResourceGroupsRequest: null,
+    getBuiltTagsRequest: null
 });

@@ -2,6 +2,7 @@ import { MessageHandler, MessageSink } from "../../../src/webview-contract/messa
 import { DeploymentSpecType, InitialState, Subscription, ToVsCodeMsgDef, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { Draft } from "../Draft/Draft";
 import { stateUpdater } from "../Draft/state";
+import { distinct } from "../utilities/array";
 import { Scenario } from "../utilities/manualTest";
 
 const appDeploymentSub: Subscription = {id: "f3adef54-889d-49cf-87c8-5fd622071914", name: "App Deployment Sub"};
@@ -18,7 +19,6 @@ const corpSubs: Subscription[] = [
     {id: "00000000-0000-0000-0000-000000000008", name: "Corp Sub 08"},
     {id: "00000000-0000-0000-0000-000000000009", name: "Corp Sub 09"}
 ];
-
 
 type ScenarioData = {
     name: string;
@@ -81,8 +81,7 @@ function withAzureResources(subscription: Subscription, appName: string): StateU
             repositoryDefinition: {
                 resourceGroup: `${appName}-prod-rg`,
                 acrName: `${alphanumeric(appName)}prodacr`,
-                repositoryName: `${alphanumeric(appName)}app`,
-                builtTags: ["0.0.1", "latest"]
+                repositoryName: `${alphanumeric(appName)}app`
             },
             clusterDefinition: {
                 resourceGroup: `${appName}-prod-rg`,
@@ -173,12 +172,39 @@ export function getDraftScenarios() {
     function getMessageHandler(webview: MessageSink<ToWebViewMsgDef>, scenarioData: ScenarioData): MessageHandler<ToVsCodeMsgDef> {
         return {
             createNewService: () => undefined,
-            getSubscriptionsRequest: () => handleGetSubscriptionsRequest()
+            getSubscriptionsRequest: handleGetSubscriptionsRequest,
+            getResourceGroupsRequest: handleGetResourceGroupsRequest,
+            getBuiltTagsRequest: args => handleGetBuildTagsRequest(args.subscriptionId, args.acrName, args.repositoryName)
         };
 
         async function handleGetSubscriptionsRequest() {
             await new Promise(resolve => setTimeout(resolve, 1000));
             webview.postGetSubscriptionsResponse(scenarioData.availableSubscriptions);
+        }
+
+        async function handleGetResourceGroupsRequest(subId: string) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const subscription = scenarioData.availableSubscriptions.find(s => s.id === subId);
+            const groupBaseName = alphanumeric(subscription!.name);
+            const knownResourceGroups = [
+                scenarioData.initialState.savedAzureResources?.clusterDefinition?.resourceGroup,
+                scenarioData.initialState.savedAzureResources?.repositoryDefinition?.resourceGroup
+            ].filter(g => !!g) as string[];
+            const generatedResourceGroups = Array.from({length: 10}, (_, i) => `${groupBaseName}-${String(i + 1).padStart(2, '0')}`);
+            webview.postGetResourceGroupsResponse({
+                subscriptionId: subId,
+                groups: distinct([...knownResourceGroups, ...generatedResourceGroups])
+            })
+        }
+
+        async function handleGetBuildTagsRequest(subscriptionId: string, acrName: string, repositoryName: string) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            webview.postGetBuiltTagsResponse({
+                subscriptionId,
+                acrName,
+                repositoryName,
+                tags: ["0.0.1", "latest"]
+            });
         }
     }
 

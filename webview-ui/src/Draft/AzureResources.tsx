@@ -3,6 +3,7 @@ import { EventHandlers } from "../utilities/state";
 import { AzureResourcesState, EventDef } from "./state";
 import { SubscriptionSelector } from "./SubscriptionSelector";
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
+import { SavedRepositoryDefinition } from "../../../src/webview-contract/webviewDefinitions/draft";
 
 export interface AzureResourcesProps {
     resourcesState: AzureResourcesState;
@@ -10,33 +11,38 @@ export interface AzureResourcesProps {
 }
 
 export function AzureResources(props: AzureResourcesProps) {
-    const anyResourcesSelected =
-        props.resourcesState.clusterDefinition !== null ||
-        props.resourcesState.repositoryDefinition !== null;
+    function handleChangeRepository() {
+        //TODO:
+    }
 
     return (
     <div className={styles.inputContainer}>
         <label htmlFor="subscription" className={styles.label}>Subscription</label>
-        {!anyResourcesSelected && (
-            <SubscriptionSelector
-                id="subscription"
-                className={styles.midControl}
-                subscriptions={props.resourcesState.availableSubscriptions}
-                selectedValue={props.resourcesState.selectedSubscription}
-                onSelect={props.eventHandlers.onSetSubscription}
-            />
-        )}
-        {props.resourcesState.selectedSubscription && anyResourcesSelected && (
+        <SubscriptionSelector
+            id="subscription"
+            className={styles.midControl}
+            subscriptions={props.resourcesState.availableSubscriptions}
+            selectedValue={props.resourcesState.selectedSubscription}
+            onSelect={props.eventHandlers.onSetSubscription}
+        />
+
+        <label htmlFor="repository" className={styles.label}>Repository</label>
+        {props.resourcesState.repositoryDefinition && (
         <>
             <VSCodeTextField
-                id="subscription"
-                readOnly={true}
-                value={props.resourcesState.selectedSubscription.name}
+                id="repository"
                 className={styles.midControl}
+                value={getRepositoryName(props.resourcesState.repositoryDefinition)}
+                readOnly={true}
             />
-            <VSCodeButton appearance="secondary" className={styles.sideControl}>Change</VSCodeButton>
+            <VSCodeButton appearance="secondary" onClick={handleChangeRepository}>Change</VSCodeButton>
         </>
         )}
+        {!props.resourcesState.repositoryDefinition}
     </div>
     );
+}
+
+function getRepositoryName(definition: SavedRepositoryDefinition): string {
+    return `${definition.acrName}.azurecr.io/${definition.repositoryName}`;
 }
