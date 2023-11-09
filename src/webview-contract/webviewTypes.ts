@@ -2,6 +2,7 @@ import { Message, MessageContext, MessageDefinition, MessageHandler, MessageSink
 import { ClusterPropertiesDefinition } from "./webviewDefinitions/clusterProperties";
 import { CreateClusterDefinition } from "./webviewDefinitions/createCluster";
 import { DetectorDefinition } from "./webviewDefinitions/detector";
+import { DraftDefinition } from "./webviewDefinitions/draft";
 import { KubectlDefinition } from "./webviewDefinitions/kubectl";
 import { InspektorGadgetDefinition } from "./webviewDefinitions/inspektorGadget";
 import { PeriscopeDefinition } from "./webviewDefinitions/periscope";
@@ -28,6 +29,7 @@ type AllWebviewDefinitions = {
     periscope: PeriscopeDefinition,
     createCluster: CreateClusterDefinition,
     detector: DetectorDefinition,
+    draft: DraftDefinition,
     gadget: InspektorGadgetDefinition,
     kubectl: KubectlDefinition,
     aso: ASODefinition,

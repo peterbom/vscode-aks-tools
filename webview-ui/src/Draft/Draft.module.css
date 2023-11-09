@@ -1,0 +1,30 @@
+.inputContainer {
+    display: grid;
+    grid-template-columns: 8rem 20rem 8rem;
+    grid-gap: 1rem;
+}
+
+.inputContainer .label {
+    grid-column: 1 / 2;
+}
+
+.inputContainer .midControl {
+    grid-column: 2 / 3;
+}
+
+.inputContainer .longControl {
+    grid-column: 2 / 4;
+}
+
+.inputContainer .sideControl {
+    grid-column: 3 / 4;
+}
+
+.fullWidth {
+    grid-column: 1 / 4
+}
+
+.infoIndicator {
+    color: var(--vscode-editorInfo-foreground);
+    padding-right: 5px;
+}

@@ -14,6 +14,7 @@ import { Scenario } from "../utilities/manualTest";
 import { getASOScenarios } from "./asoTests";
 import { getClusterPropertiesScenarios } from "./clusterPropertiesTests";
 import { getTCPDumpScenarios } from "./tcpDumpTests";
+import { getDraftScenarios } from "./draftTests";
 
 // There are two modes of launching this application:
 // 1. Via the VS Code extension inside a Webview.
@@ -34,6 +35,7 @@ const contentTestScenarios: Record<ContentId, Scenario[]> = {
     createCluster: getCreateClusterScenarios(),
     periscope: getPeriscopeScenarios(),
     detector: getDetectorScenarios(),
+    draft: getDraftScenarios(),
     gadget: getInspektorGadgetScenarios(),
     kubectl: getKubectlScenarios(),
     aso: getASOScenarios(),

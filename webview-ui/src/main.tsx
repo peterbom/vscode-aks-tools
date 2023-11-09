@@ -7,6 +7,7 @@ import { ContentId } from "../../src/webview-contract/webviewTypes";
 import { TestStyleViewer } from "./TestStyleViewer/TestStyleViewer";
 import { Periscope } from "./Periscope/Periscope";
 import { Detector } from "./Detector/Detector";
+import { Draft } from "./Draft/Draft";
 import { InspektorGadget } from "./InspektorGadget/InspektorGadget";
 import { Kubectl } from "./Kubectl/Kubectl";
 import { AzureServiceOperator } from "./AzureServiceOperator/AzureServiceOperator";
@@ -43,6 +44,7 @@ function getVsCodeContent(): JSX.Element {
         clusterProperties: () => <ClusterProperties {...vsCodeInitialState} />,
         periscope: () => <Periscope {...vsCodeInitialState} />,
         detector: () => <Detector {...vsCodeInitialState} />,
+        draft: () => <Draft {...vsCodeInitialState} />,
         gadget: () => <InspektorGadget {...vsCodeInitialState} />,
         kubectl: () => <Kubectl {...vsCodeInitialState} />,
         aso: () => <AzureServiceOperator {...vsCodeInitialState} />,
