@@ -7,20 +7,30 @@ export type SavedBuildConfig = {
 };
 
 export type SavedRepositoryDefinition = {
-    resourceGroup: string;
-    acrName: string;
-    repositoryName: string;
+    resourceGroup: ResourceGroup;
+    acrName: AcrName;
+    repositoryName: RepositoryName;
 };
 
 export type SavedClusterDefinition = {
-    resourceGroup: string;
-    name: string;
+    resourceGroup: ResourceGroup;
+    name: ClusterName;
 };
 
 export type Subscription = {
     id: string;
     name: string;
 };
+
+export type ResourceGroup = string;
+
+export type AcrName = string;
+
+export type RepositoryName = string;
+
+export type ImageTag = string;
+
+export type ClusterName = string;
 
 export type SavedAzureResources = {
     // Both ACR and cluster need to be in the same subscription for Draft functionality to work.
@@ -48,6 +58,26 @@ export type SavedService = {
     gitHubWorkflow: SavedGitHubWorkflow | null;
 };
 
+export type SubscriptionKey = {
+    subscriptionId: string;
+};
+
+export type ResourceGroupKey = SubscriptionKey & {
+    resourceGroup: ResourceGroup;
+};
+
+export type AcrKey = ResourceGroupKey & {
+    acrName: AcrName;
+};
+
+export type ClusterKey = ResourceGroupKey & {
+    clusterName: ClusterName;
+};
+
+export type RepositoryKey = AcrKey & {
+    repositoryName: RepositoryName;
+};
+
 export interface InitialState {
     workspaceName: string;
     savedAzureResources: SavedAzureResources | null;
@@ -56,27 +86,31 @@ export interface InitialState {
 
 export type ToWebViewMsgDef = {
     getSubscriptionsResponse: Subscription[];
-    getResourceGroupsResponse: {
-        subscriptionId: string;
-        groups: string[];
+    getResourceGroupsResponse: SubscriptionKey & {
+        groups: ResourceGroup[];
     };
-    getBuiltTagsResponse: {
-        subscriptionId: string;
-        acrName: string;
-        repositoryName: string;
-        tags: string[];
+    getAcrNamesResponse: ResourceGroupKey & {
+        acrNames: AcrName[];
+    };
+    getRepositoriesResponse: AcrKey & {
+        repositoryNames: RepositoryName[];
+    };
+    getBuiltTagsResponse: RepositoryKey & {
+        tags: ImageTag[];
+    };
+    getClustersResponse: ResourceGroupKey & {
+        clusterNames: ClusterName[];
     };
 };
 
 export type ToVsCodeMsgDef = {
     createNewService: string;
     getSubscriptionsRequest: void;
-    getResourceGroupsRequest: string;
-    getBuiltTagsRequest: {
-        subscriptionId: string;
-        acrName: string;
-        repositoryName: string;
-    };
+    getResourceGroupsRequest: SubscriptionKey;
+    getAcrNamesRequest: ResourceGroupKey;
+    getRepositoriesRequest: AcrKey;
+    getBuiltTagsRequest: RepositoryKey;
+    getClustersRequest: ClusterKey;
 };
 
 export type DraftDefinition = WebviewDefinition<InitialState, ToVsCodeMsgDef, ToWebViewMsgDef>;

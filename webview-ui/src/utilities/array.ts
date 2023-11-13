@@ -2,8 +2,8 @@ export type Lookup<T> = {
     [key: string]: T
 };
 
-export function asLookup<T>(items: T[], keyFn: (value: T) => string): Lookup<T> {
-    const entries = items.map(val => [keyFn(val), val]);
+export function asLookup<T>(items: T[], keyFn: (value: T) => ItemKey): Lookup<T> {
+    const entries = items.map(val => [getKeyId(keyFn(val)), val]);
     return Object.fromEntries(entries);
 }
 
@@ -17,6 +17,25 @@ export function replaceItem<T>(items: T[], predicate: (item: T) => boolean, repl
     return [...items.slice(0, index), newItem, ...items.slice(index + 1)];
 }
 
+export type ItemKey = {[key: string]: string} | string;
+
+export function updateValues<TKey extends ItemKey, TItem>(items: TItem[], updatedKeys: TKey[], keyFn: (item: TItem) => TKey, itemFn: (key: TKey) => TItem): TItem[] {
+    const lookup = asLookup(items, keyFn);
+    return updatedKeys.map(key => {
+        const keyId = getKeyId(key);
+        return keyId in lookup ? lookup[keyId] : itemFn(key);
+    });
+}
+
+export function getOrThrow<T>(items: T[], predicate: (item: T) => boolean, description: string): T {
+    const item = items.find(predicate);
+    if (item === undefined) {
+        throw new Error(`${description} not found`);
+    }
+
+    return item;
+}
+
 export function distinct(items: string[]) {
     return [...new Set(items)];
 }
@@ -27,4 +46,12 @@ export function intersection<T>(itemsA: T[], itemsB: T[]): T[] {
 
 export function exclude<T>(take: T[], exclude: T[]): T[] {
     return take.filter(a => !exclude.includes(a));
+}
+
+function getKeyId(key: ItemKey): string {
+    if (key instanceof Object) {
+        return Object.keys(key).map(keyPart => key[keyPart]).join("\0");
+    }
+
+    return key;
 }

@@ -2,14 +2,14 @@ import styles from "./Draft.module.css";
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
 import { InitialState } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { getStateManagement } from "../utilities/state";
-import { stateUpdater, vscode } from "./state";
+import { getSubscriptionReferenceData, stateUpdater, vscode } from "./state";
 import { FormEvent, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 import { NewServiceDialog } from "./NewServiceDialog";
 import { AzureResources } from "./AzureResources";
 import { Service } from "./Service";
-import { isNotLoaded } from "../utilities/lazy";
+import { isLoaded, isNotLoaded } from "../utilities/lazy";
 
 export function Draft(initialState: InitialState) {
     const {state, eventHandlers, vsCodeMessageHandlers} = getStateManagement(stateUpdater, initialState);
@@ -19,12 +19,101 @@ export function Draft(initialState: InitialState) {
     }, []);
 
     useEffect(() => {
-        if (isNotLoaded(state.azureResources.availableSubscriptions)) {
+        if (isNotLoaded(state.referenceData.subscriptions)) {
             vscode.postGetSubscriptionsRequest();
             eventHandlers.onSetSubscriptionsLoading();
         }
 
-        if (state.azureResources.selectedSubscription && isNotLoaded(state.azureResources.availableResourceGroups)) {
+        if (state.azureResources.selectedSubscription !== null && isLoaded(state.referenceData.subscriptions)) {
+            const subscriptionId = state.azureResources.selectedSubscription.id;
+            const subscriptionData = state.referenceData.subscriptions.value.find(s => s.subscription.id === subscriptionId);
+            if (!subscriptionData) {
+                // The saved subscription is no longer accessible.
+                eventHandlers.onSetSubscription(null);
+                return;
+            }
+
+            if (isNotLoaded(subscriptionData.resourceGroups)) {
+                vscode.postGetResourceGroupsRequest({subscriptionId});
+                eventHandlers.onSetResourceGroupsLoading({subscriptionId});
+                return;
+            } else if (!isLoaded(subscriptionData.resourceGroups)) {
+                return;
+            }
+
+            if (state.azureResources.repositoryDefinition !== null) {
+                const {resourceGroup, acrName, repositoryName} = state.azureResources.repositoryDefinition;
+                const resourceGroupData = subscriptionData.resourceGroups.value.find(group => group.name === resourceGroup);
+                if (!resourceGroupData) {
+                    // The repository resource group is no longer accessible.
+                    eventHandlers.onSetRepository(null);
+                    return;
+                }
+
+                if (isNotLoaded(resourceGroupData.acrs)) {
+                    vscode.postGetAcrNamesRequest({subscriptionId, resourceGroup});
+                    eventHandlers.onSetAcrsLoading({subscriptionId, resourceGroup});
+                    return;
+                } else if (!isLoaded(resourceGroupData.acrs)) {
+                    return;
+                }
+
+                const acrData = resourceGroupData.acrs.value.find(acr => acr.name === acrName);
+                if (!acrData) {
+                    // The ACR is no longer accessible.
+                    eventHandlers.onSetRepository(null);
+                    return;
+                }
+
+                if (isNotLoaded(acrData.repositories)) {
+                    vscode.postGetRepositoriesRequest({subscriptionId, resourceGroup, acrName});
+                    eventHandlers.onSetRepositoriesLoading({subscriptionId, resourceGroup, acrName});
+                    return;
+                } else if (!isLoaded(acrData.repositories)) {
+                    return;
+                }
+
+                const repositoryData = acrData.repositories.value.find(repo => repo.name === repositoryName);
+                if (!repositoryData) {
+                    // The repo is no longer accessible.
+                    eventHandlers.onSetRepository(null);
+                    return;
+                }
+
+                if (isNotLoaded(repositoryData.builtTags)) {
+                    vscode.postGetBuiltTagsRequest({subscriptionId, resourceGroup, acrName, repositoryName});
+                    eventHandlers.onSetBuiltTagsLoading({subscriptionId, resourceGroup, acrName, repositoryName});
+                    return;
+                } else if (!isLoaded(repositoryData.builtTags)) {
+                    return;
+                }
+            }
+
+            if (state.azureResources.clusterDefinition !== null) {
+                const {resourceGroup, name} = state.azureResources.clusterDefinition;
+                const resourceGroupData = subscriptionData.resourceGroups.value.find(group => group.name === resourceGroup);
+                if (!resourceGroupData) {
+                    // The cluster resource group is no longer accessible.
+                    eventHandlers.onSetCluster(null);
+                    return;
+                }
+            }
+
+            // const usedResourceGroups = [
+            //     state.azureResources.clusterDefinition?.resourceGroup,
+            //     state.azureResources.repositoryDefinition?.resourceGroup
+            // ].filter(g => !!g) as string[];
+            // if (usedResourceGroups.length > 0 && isLoaded(subscriptionData.resourceGroups)) {
+            //     for (const usedResourceGroup of usedResourceGroups) {
+            //         const resourceGroupData = subscriptionData.resourceGroups.value.find(group => group.name === usedResourceGroup)
+            //     }
+            // }
+            // if (!state.azureResources.repositoryDefinition) {
+
+            // }
+        }
+
+        if (state.azureResources.selectedSubscription && isLoaded(state.referenceData.subscriptions) && isNotLoaded(state.referenceData.subscriptions)) {
             vscode.postGetResourceGroupsRequest(state.azureResources.selectedSubscription.id);
             eventHandlers.onSetResourceGroupsLoading();
         }

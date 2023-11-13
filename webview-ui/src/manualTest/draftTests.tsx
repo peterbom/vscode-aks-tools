@@ -1,5 +1,5 @@
 import { MessageHandler, MessageSink } from "../../../src/webview-contract/messaging";
-import { DeploymentSpecType, InitialState, Subscription, ToVsCodeMsgDef, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { DeploymentSpecType, InitialState, ResourceGroup, Subscription, ToVsCodeMsgDef, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { Draft } from "../Draft/Draft";
 import { stateUpdater } from "../Draft/state";
 import { distinct } from "../utilities/array";
@@ -174,6 +174,8 @@ export function getDraftScenarios() {
             createNewService: () => undefined,
             getSubscriptionsRequest: handleGetSubscriptionsRequest,
             getResourceGroupsRequest: handleGetResourceGroupsRequest,
+            getAcrNamesRequest: handleGetAcrNamesRequest,
+            getRepositoriesRequest: handleGetRepositoriesRequest,
             getBuiltTagsRequest: args => handleGetBuildTagsRequest(args.subscriptionId, args.acrName, args.repositoryName)
         };
 
@@ -195,6 +197,10 @@ export function getDraftScenarios() {
                 subscriptionId: subId,
                 groups: distinct([...knownResourceGroups, ...generatedResourceGroups])
             })
+        }
+
+        async function handleGetAcrNamesRequest(subscriptionId: string, resourceGroup: ResourceGroup) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         async function handleGetBuildTagsRequest(subscriptionId: string, acrName: string, repositoryName: string) {
