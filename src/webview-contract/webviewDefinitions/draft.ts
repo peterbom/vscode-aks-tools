@@ -110,7 +110,7 @@ export type ToVsCodeMsgDef = {
     getAcrNamesRequest: ResourceGroupKey;
     getRepositoriesRequest: AcrKey;
     getBuiltTagsRequest: RepositoryKey;
-    getClustersRequest: ClusterKey;
+    getClustersRequest: ResourceGroupKey;
 };
 
 export type DraftDefinition = WebviewDefinition<InitialState, ToVsCodeMsgDef, ToWebViewMsgDef>;

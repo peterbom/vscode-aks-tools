@@ -1,6 +1,7 @@
 import { AcrKey, AcrName, ClusterName, ImageTag, RepositoryKey, RepositoryName, ResourceGroup, ResourceGroupKey, SavedClusterDefinition, SavedRepositoryDefinition, SavedService, Subscription, SubscriptionKey } from "../../../src/webview-contract/webviewDefinitions/draft";
-import { getOrThrow, replaceItem, updateValues } from "../utilities/array";
-import { Lazy, isLoaded, map as lazyMap, newLoaded, newLoading, newNotLoaded, orDefault } from "../utilities/lazy";
+import { replaceItem, tryGet, updateValues } from "../utilities/array";
+import { bind as lazyBind, Lazy, map as lazyMap, newLoaded, newLoading, newNotLoaded, orDefault } from "../utilities/lazy";
+import { Maybe, hasValue, nothing } from "../utilities/maybe";
 import { WebviewStateUpdater } from "../utilities/state";
 import { getWebviewMessageContext } from "../utilities/vscode";
 
@@ -17,6 +18,7 @@ export type EventDef = {
     setSubscription: Subscription | null;
     setRepositoryDialogShown: boolean;
     setRepository: SavedRepositoryDefinition | null;
+    setCluster: SavedClusterDefinition | null;
 };
 
 export type ReferenceData = {
@@ -41,7 +43,7 @@ export type AcrReferenceData = {
 
 export type RepositoryReferenceData = {
     name: RepositoryName;
-    builtTags: Lazy<string[]>;
+    builtTags: Lazy<ImageTag[]>;
 };
 
 export type ClusterReferenceData = {
@@ -84,20 +86,20 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
         isNewServiceDialogShown: false
     }),
     vscodeMessageHandler: {
-        getSubscriptionsResponse: (state, subs) => ({...state, referenceData: ReferenceData.updateSubscriptions(state.referenceData, subs)}),
-        getResourceGroupsResponse: (state, args) => ({...state, referenceData: ReferenceData.updateResourceGroups(state.referenceData, args.subscriptionId, args.groups)}),
-        getAcrNamesResponse: (state, args) => ({...state, referenceData: ReferenceData.updateAcrNames(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrNames)}),
-        getRepositoriesResponse: (state, args) => ({...state, referenceData: ReferenceData.updateRepositoryNames(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName, args.repositoryNames)}),
-        getBuiltTagsResponse: (state, args) => ({...state, referenceData: ReferenceData.updateBuiltTags(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName, args.repositoryName, args.tags)}),
-        getClustersResponse: (state, args) => ({...state, referenceData: ReferenceData.updateClusterNames(state.referenceData, args.subscriptionId, args.resourceGroup, args.clusterNames)})
+        getSubscriptionsResponse: (state, subs) => ({...state, referenceData: ReferenceDataUpdate.updateSubscriptions(state.referenceData, subs)}),
+        getResourceGroupsResponse: (state, args) => ({...state, referenceData: ReferenceDataUpdate.updateResourceGroups(state.referenceData, args.subscriptionId, args.groups)}),
+        getAcrNamesResponse: (state, args) => ({...state, referenceData: ReferenceDataUpdate.updateAcrNames(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrNames)}),
+        getRepositoriesResponse: (state, args) => ({...state, referenceData: ReferenceDataUpdate.updateRepositoryNames(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName, args.repositoryNames)}),
+        getBuiltTagsResponse: (state, args) => ({...state, referenceData: ReferenceDataUpdate.updateBuiltTags(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName, args.repositoryName, args.tags)}),
+        getClustersResponse: (state, args) => ({...state, referenceData: ReferenceDataUpdate.updateClusterNames(state.referenceData, args.subscriptionId, args.resourceGroup, args.clusterNames)})
     },
     eventHandler: {
-        setSubscriptionsLoading: (state) => ({...state, referenceData: ReferenceData.setSubscriptionsLoading(state.referenceData)}),
-        setResourceGroupsLoading: (state, args) => ({...state, referenceData: ReferenceData.setResourceGroupsLoading(state.referenceData, args.subscriptionId)}),
-        setAcrsLoading: (state, args) => ({...state, referenceData: ReferenceData.setAcrsLoading(state.referenceData, args.subscriptionId, args.resourceGroup)}),
-        setRepositoriesLoading: (state, args) => ({...state, referenceData: ReferenceData.setRepositoriesLoading(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName)}),
-        setBuiltTagsLoading: (state, args) => ({...state, referenceData: ReferenceData.setBuiltTagsLoading(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName, args.repositoryName)}),
-        setClustersLoading: (state, args) => ({...state, referenceData: ReferenceData.setClustersLoading(state.referenceData, args.subscriptionId, args.resourceGroup)}),
+        setSubscriptionsLoading: (state) => ({...state, referenceData: ReferenceDataUpdate.setSubscriptionsLoading(state.referenceData)}),
+        setResourceGroupsLoading: (state, args) => ({...state, referenceData: ReferenceDataUpdate.setResourceGroupsLoading(state.referenceData, args.subscriptionId)}),
+        setAcrsLoading: (state, args) => ({...state, referenceData: ReferenceDataUpdate.setAcrsLoading(state.referenceData, args.subscriptionId, args.resourceGroup)}),
+        setRepositoriesLoading: (state, args) => ({...state, referenceData: ReferenceDataUpdate.setRepositoriesLoading(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName)}),
+        setBuiltTagsLoading: (state, args) => ({...state, referenceData: ReferenceDataUpdate.setBuiltTagsLoading(state.referenceData, args.subscriptionId, args.resourceGroup, args.acrName, args.repositoryName)}),
+        setClustersLoading: (state, args) => ({...state, referenceData: ReferenceDataUpdate.setClustersLoading(state.referenceData, args.subscriptionId, args.resourceGroup)}),
         setNewServiceDialogShown: (state, shown) => ({...state, isNewServiceDialogShown: shown}),
         createNewService: (state, name) => ({...state, selectedService: name, isNewServiceDialogShown: false, services: [...state.services, {
             name,
@@ -108,23 +110,81 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
         setSelectedService: (state, selectedService) => ({...state, selectedService}),
         setSubscription: (state, subscription) => ({...state, azureResources: {...state.azureResources, selectedSubscription: subscription, clusterDefinition: null, repositoryDefinition: null}}),
         setRepositoryDialogShown: (state, shown) => ({...state, azureResources: {...state.azureResources, isRepositoryDialogShown: shown}}),
-        setRepository: (state, repositoryDefinition) => ({...state, azureResources: {...state.azureResources, repositoryDefinition}})
+        setRepository: (state, repositoryDefinition) => ({...state, azureResources: {...state.azureResources, repositoryDefinition}}),
+        setCluster: (state, clusterDefinition) => ({...state, azureResources: {...state.azureResources, clusterDefinition}})
     }
 };
 
-export function getSubscriptionReferenceData(data: ReferenceData, subscriptionId: string): Lazy<SubscriptionReferenceData> {
-    return lazyMap(data.subscriptions, subs => getOrThrow(subs, sub => sub.subscription.id === subscriptionId, `Subscription ${subscriptionId}`));
+export namespace ReferenceData {
+    export function getSubscription(data: ReferenceData, subscriptionId: string): Lazy<Maybe<SubscriptionReferenceData>> {
+        return lazyMap(data.subscriptions, subs => tryGet(subs, sub => sub.subscription.id === subscriptionId));
+    }
+
+    export function getResourceGroup(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup): Lazy<Maybe<ResourceGroupReferenceData>> {
+        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getResourceGroup(data, resourceGroup));
+    }
+
+    export function getAcr(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName): Lazy<Maybe<AcrReferenceData>> {
+        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getAcr(data, resourceGroup, acrName));
+    }
+
+    export function getRepository(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
+        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getRepository(data, resourceGroup, acrName, repositoryName));
+    }
+
+    export function getCluster(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, clusterName: ClusterName): Lazy<Maybe<ClusterReferenceData>> {
+        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getCluster(data, resourceGroup, clusterName));
+    }
 }
 
-export function getResourceGroupReferenceData(data: SubscriptionReferenceData, resourceGroup: ResourceGroup): Lazy<ResourceGroupReferenceData> {
-    return lazyMap(data.resourceGroups, groups => getOrThrow(groups, group => group.name === resourceGroup, `Group ${resourceGroup} subscription ${data.subscription.id}`));
+export namespace SubscriptionData {
+    export function getResourceGroup(data: SubscriptionReferenceData, resourceGroup: ResourceGroup): Lazy<Maybe<ResourceGroupReferenceData>> {
+        return lazyMap(data.resourceGroups, groups => tryGet(groups, group => group.name === resourceGroup));
+    }
+
+    export function getAcr(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName): Lazy<Maybe<AcrReferenceData>> {
+        return lazyMaybeBind(getResourceGroup(data, resourceGroup), data => ResourceGroupData.getAcr(data, acrName));
+    }
+
+    export function getRepository(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
+        return lazyMaybeBind(getResourceGroup(data, resourceGroup), data => ResourceGroupData.getRepository(data, acrName, repositoryName));
+    }
+
+    export function getCluster(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, clusterName: ClusterName): Lazy<Maybe<ClusterReferenceData>> {
+        return lazyMaybeBind(getResourceGroup(data, resourceGroup), data => ResourceGroupData.getCluster(data, clusterName));
+    }
 }
 
-export function getAcrReferenceData(data: ResourceGroupReferenceData, acrName: AcrName): Lazy<AcrReferenceData> {
-    return lazyMap(data.acrs, acrs => getOrThrow(acrs, acr => acr.name === acrName, `ACR ${acrName} in resource group ${data.name}`));
+export namespace ResourceGroupData {
+    export function getAcr(data: ResourceGroupReferenceData, acrName: AcrName): Lazy<Maybe<AcrReferenceData>> {
+        return lazyMap(data.acrs, acrs => tryGet(acrs, acr => acr.name === acrName));
+    }
+
+    export function getCluster(data: ResourceGroupReferenceData, clusterName: ClusterName): Lazy<Maybe<ClusterReferenceData>> {
+        return lazyMap(data.clusters, clusters => tryGet(clusters, c => c.name === clusterName));
+    }
+
+    export function getRepository(data: ResourceGroupReferenceData, acrName: AcrName, repositoryName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
+        return lazyMaybeBind(getAcr(data, acrName), data => AcrData.getRepository(data, repositoryName));
+    }
 }
 
-namespace ReferenceData {
+function lazyMaybeBind<T1, T2>(value: Lazy<Maybe<T1>>, fn: (value: T1) => Lazy<Maybe<T2>>): Lazy<Maybe<T2>> {
+    return lazyBind(value, (maybe) => {
+        if (!hasValue(maybe)) {
+            return newLoaded(nothing());
+        }
+        return fn(maybe.value);
+    });
+}
+
+export namespace AcrData {
+    export function getRepository(data: AcrReferenceData, repoName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
+        return lazyMap(data.repositories, repos => tryGet(repos, repo => repo.name === repoName));
+    }
+}
+
+namespace ReferenceDataUpdate {
     export function setSubscriptionsLoading(data: ReferenceData): ReferenceData {
         return {...data, subscriptions: newLoading()};
     }
@@ -143,43 +203,43 @@ namespace ReferenceData {
     }
 
     export function setResourceGroupsLoading(data: ReferenceData, subscriptionId: string): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.setResourceGroupsLoading(sub));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.setResourceGroupsLoading(sub));
     }
 
     export function updateResourceGroups(data: ReferenceData, subscriptionId: string, resourceGroups: ResourceGroup[]): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.updateResourceGroups(sub, resourceGroups));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.updateResourceGroups(sub, resourceGroups));
     }
 
     export function setAcrsLoading(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.setAcrsLoading(sub, resourceGroup));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.setAcrsLoading(sub, resourceGroup));
     }
 
     export function updateAcrNames(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrNames: AcrName[]): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.updateAcrNames(sub, resourceGroup, acrNames));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.updateAcrNames(sub, resourceGroup, acrNames));
     }
 
     export function setRepositoriesLoading(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.setRepositoriesLoading(sub, resourceGroup, acrName));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.setRepositoriesLoading(sub, resourceGroup, acrName));
     }
 
     export function updateRepositoryNames(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName, repositoryNames: RepositoryName[]): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.updateRepositoryNames(sub, resourceGroup, acrName, repositoryNames));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.updateRepositoryNames(sub, resourceGroup, acrName, repositoryNames));
     }
 
     export function setBuiltTagsLoading(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.setBuiltTagsLoading(sub, resourceGroup, acrName, repositoryName));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.setBuiltTagsLoading(sub, resourceGroup, acrName, repositoryName));
     }
 
     export function updateBuiltTags(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName, tags: string[]): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.updateBuiltTags(sub, resourceGroup, acrName, repositoryName, tags));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.updateBuiltTags(sub, resourceGroup, acrName, repositoryName, tags));
     }
 
     export function setClustersLoading(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.setClustersLoading(sub, resourceGroup));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.setClustersLoading(sub, resourceGroup));
     }
 
     export function updateClusterNames(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, clusterNames: ClusterName[]): ReferenceData {
-        return updateSubscription(data, subscriptionId, sub => SubscriptionData.updateClusterNames(sub, resourceGroup, clusterNames));
+        return updateSubscription(data, subscriptionId, sub => SubscriptionDataUpdate.updateClusterNames(sub, resourceGroup, clusterNames));
     }
 
     function updateSubscription(data: ReferenceData, subscriptionId: string, updater: (data: SubscriptionReferenceData) => SubscriptionReferenceData): ReferenceData {
@@ -194,7 +254,7 @@ namespace ReferenceData {
     }
 }
 
-namespace SubscriptionData {
+namespace SubscriptionDataUpdate {
     export function setResourceGroupsLoading(data: SubscriptionReferenceData): SubscriptionReferenceData {
         return {...data, resourceGroups: newLoading()};
     }
@@ -214,35 +274,35 @@ namespace SubscriptionData {
     }
 
     export function setAcrsLoading(data: SubscriptionReferenceData, resourceGroup: ResourceGroup): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.setAcrsLoading(group));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.setAcrsLoading(group));
     }
 
     export function updateAcrNames(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrNames: AcrName[]): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.updateAcrNames(group, acrNames));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.updateAcrNames(group, acrNames));
     }
 
     export function setRepositoriesLoading(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.setRepositoriesLoading(group, acrName));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.setRepositoriesLoading(group, acrName));
     }
 
     export function updateRepositoryNames(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, repositoryNames: RepositoryName[]): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.updateRepositoryNames(group, acrName, repositoryNames));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.updateRepositoryNames(group, acrName, repositoryNames));
     }
 
     export function setBuiltTagsLoading(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.setBuiltTagsLoading(group, acrName, repositoryName));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.setBuiltTagsLoading(group, acrName, repositoryName));
     }
 
     export function updateBuiltTags(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName, tags: string[]): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.updateBuiltTags(group, acrName, repositoryName, tags));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.updateBuiltTags(group, acrName, repositoryName, tags));
     }
 
     export function setClustersLoading(data: SubscriptionReferenceData, resourceGroup: ResourceGroup): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.setClustersLoading(group));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.setClustersLoading(group));
     }
 
     export function updateClusterNames(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, clusterNames: ClusterName[]): SubscriptionReferenceData {
-        return updateResourceGroup(data, resourceGroup, group => ResourceGroupData.updateClusterNames(group, clusterNames));
+        return updateResourceGroup(data, resourceGroup, group => ResourceGroupDataUpdate.updateClusterNames(group, clusterNames));
     }
 
     function updateResourceGroup(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, updater: (data: ResourceGroupReferenceData) => ResourceGroupReferenceData): SubscriptionReferenceData {
@@ -257,7 +317,7 @@ namespace SubscriptionData {
     }
 }
 
-namespace ResourceGroupData {
+namespace ResourceGroupDataUpdate {
     export function setAcrsLoading(data: ResourceGroupReferenceData): ResourceGroupReferenceData {
         return {...data, acrs: newLoading()};
     }
@@ -293,19 +353,19 @@ namespace ResourceGroupData {
     }
 
     export function setRepositoriesLoading(data: ResourceGroupReferenceData, acrName: AcrName): ResourceGroupReferenceData {
-        return updateAcr(data, acrName, acr => AcrData.setRepositoriesLoading(acr));
+        return updateAcr(data, acrName, acr => AcrDataUpdate.setRepositoriesLoading(acr));
     }
 
     export function updateRepositoryNames(data: ResourceGroupReferenceData, acrName: AcrName, repositoryNames: RepositoryName[]): ResourceGroupReferenceData {
-        return updateAcr(data, acrName, acr => AcrData.updateRepositoryNames(acr, repositoryNames));
+        return updateAcr(data, acrName, acr => AcrDataUpdate.updateRepositoryNames(acr, repositoryNames));
     }
 
     export function setBuiltTagsLoading(data: ResourceGroupReferenceData, acrName: AcrName, repositoryName: RepositoryName): ResourceGroupReferenceData {
-        return updateAcr(data, acrName, acr => AcrData.setBuiltTagsLoading(acr, repositoryName));
+        return updateAcr(data, acrName, acr => AcrDataUpdate.setBuiltTagsLoading(acr, repositoryName));
     }
 
     export function updateBuiltTags(data: ResourceGroupReferenceData, acrName: AcrName, repositoryName: RepositoryName, tags: string[]): ResourceGroupReferenceData {
-        return updateAcr(data, acrName, acr => AcrData.updateBuiltTags(acr, repositoryName, tags));
+        return updateAcr(data, acrName, acr => AcrDataUpdate.updateBuiltTags(acr, repositoryName, tags));
     }
 
     function updateAcr(data: ResourceGroupReferenceData, acrName: AcrName, updater: (data: AcrReferenceData) => AcrReferenceData): ResourceGroupReferenceData {
@@ -320,7 +380,7 @@ namespace ResourceGroupData {
     }
 };
 
-namespace AcrData {
+namespace AcrDataUpdate {
     export function setRepositoriesLoading(data: AcrReferenceData): AcrReferenceData {
         return {...data, repositories: newLoading()};
     }
@@ -339,11 +399,11 @@ namespace AcrData {
     }
 
     export function setBuiltTagsLoading(data: AcrReferenceData, repositoryName: RepositoryName): AcrReferenceData {
-        return updateRepository(data, repositoryName, repository => RepositoryData.setBuiltTagsLoading(repository));
+        return updateRepository(data, repositoryName, repository => RepositoryDataUpdate.setBuiltTagsLoading(repository));
     }
 
     export function updateBuiltTags(data: AcrReferenceData, repositoryName: RepositoryName, tags: string[]): AcrReferenceData {
-        return updateRepository(data, repositoryName, repository => RepositoryData.updateBuiltTags(repository, tags));
+        return updateRepository(data, repositoryName, repository => RepositoryDataUpdate.updateBuiltTags(repository, tags));
     }
 
     function updateRepository(data: AcrReferenceData, repositoryName: RepositoryName, updater: (data: RepositoryReferenceData) => RepositoryReferenceData): AcrReferenceData {
@@ -358,12 +418,12 @@ namespace AcrData {
     }
 }
 
-namespace RepositoryData {
+namespace RepositoryDataUpdate {
     export function setBuiltTagsLoading(data: RepositoryReferenceData): RepositoryReferenceData {
         return {...data, builtTags: newLoading()};
     }
 
-    export function updateBuiltTags(data: RepositoryReferenceData, tags: string[]): RepositoryReferenceData {
+    export function updateBuiltTags(data: RepositoryReferenceData, tags: ImageTag[]): RepositoryReferenceData {
         return {
             ...data,
             builtTags: newLoaded(tags)

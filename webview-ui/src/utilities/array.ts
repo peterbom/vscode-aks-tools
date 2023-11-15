@@ -1,3 +1,5 @@
+import { Maybe, just, nothing } from "./maybe";
+
 export type Lookup<T> = {
     [key: string]: T
 };
@@ -27,13 +29,9 @@ export function updateValues<TKey extends ItemKey, TItem>(items: TItem[], update
     });
 }
 
-export function getOrThrow<T>(items: T[], predicate: (item: T) => boolean, description: string): T {
+export function tryGet<T>(items: T[], predicate: (item: T) => boolean): Maybe<T> {
     const item = items.find(predicate);
-    if (item === undefined) {
-        throw new Error(`${description} not found`);
-    }
-
-    return item;
+    return item ? just(item) : nothing();
 }
 
 export function distinct(items: string[]) {

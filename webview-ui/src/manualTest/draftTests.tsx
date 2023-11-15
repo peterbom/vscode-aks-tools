@@ -1,8 +1,7 @@
 import { MessageHandler, MessageSink } from "../../../src/webview-contract/messaging";
-import { DeploymentSpecType, InitialState, ResourceGroup, Subscription, ToVsCodeMsgDef, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { AcrKey, AcrName, ClusterName, DeploymentSpecType, ImageTag, InitialState, RepositoryName, ResourceGroup, Subscription, ToVsCodeMsgDef, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { Draft } from "../Draft/Draft";
 import { stateUpdater } from "../Draft/state";
-import { distinct } from "../utilities/array";
 import { Scenario } from "../utilities/manualTest";
 
 const appDeploymentSub: Subscription = {id: "f3adef54-889d-49cf-87c8-5fd622071914", name: "App Deployment Sub"};
@@ -20,17 +19,101 @@ const corpSubs: Subscription[] = [
     {id: "00000000-0000-0000-0000-000000000009", name: "Corp Sub 09"}
 ];
 
+function createSubscriptionData(subscription: Subscription, appNames: string[]): SubscriptionData {
+    const appGroups = appNames.flatMap(appName => [`${appName}-dev-rg`, `${appName}-test-rg`, `${appName}-prod-rg`]);
+    const otherGroups = Array.from({length: 5}, (_, i) => `other-${String(i + 1).padStart(2, '0')}-rg`);
+    return {
+        subscription,
+        resourceGroups: [...appGroups, ...otherGroups].map(group => createResourceGroupData(group, appNames))
+    };
+}
+
+function createResourceGroupData(resourceGroup: ResourceGroup, appNames: string[]): ResourceGroupData {
+    const groupNameParts = resourceGroup.replace(/\-rg$/, "").split("-");
+    const env = groupNameParts[groupNameParts.length - 1];
+
+    const appAcrs = appNames.map(appName => `${appName}${env}acr`);
+    const otherAcrs = Array.from({length: 5}, (_, i) => `${env}acr${String(i + 1).padStart(2, '0')}`);
+
+    const appClusters = appNames.map(appName => `${appName}-${env}-cluster`);
+    const otherClusters = Array.from({length: 5}, (_, i) => `${env}-cluster-${String(i + 1).padStart(2, '0')}`);
+
+    return {
+        name: resourceGroup,
+        acrs: [...appAcrs, ...otherAcrs].map(acr => createAcrData(acr, appNames)),
+        clusters: [...appClusters, ...otherClusters].map(cluster => createClusterData(cluster, appNames))
+    };
+}
+
+function createAcrData(name: AcrName, appNames: string[]): AcrData {
+    const appRepos = appNames.map(appName => `${alphanumeric(appName)}app`);
+    const otherRepos = Array.from({length: 5}, (_, i) => `other/repo${String(i + 1).padStart(2, '0')}`);
+    return {
+        name,
+        repositories: [...appRepos, ...otherRepos].map(repo => createRepositoryData(repo, appNames))
+    };
+}
+
+function createRepositoryData(name: RepositoryName, appNames: string[]): RepositoryData {
+    return {
+        name,
+        builtTags: ["0.0.1", "0.0.2", "0.0.3", "0.1.0", "0.1.1", "0.2.0", "0.3.0", "0.3.1", "latest"]
+    };
+}
+
+function createClusterData(name: ClusterName, appNames: string[]): ClusterData {
+    return {
+        name,
+        connectedAcrs: []
+    };
+}
+
 type ScenarioData = {
     name: string;
     initialState: InitialState;
-    availableSubscriptions: Subscription[];
+    referenceData: ReferenceData;
 };
+
+type ReferenceData = {
+    subscriptions: SubscriptionData[];
+}
+
+type SubscriptionData = {
+    subscription: Subscription;
+    resourceGroups: ResourceGroupData[];
+};
+
+type ResourceGroupData = {
+    name: ResourceGroup;
+    acrs: AcrData[];
+    clusters: ClusterData[];
+};
+
+type AcrData = {
+    name: AcrName;
+    repositories: RepositoryData[];
+};
+
+type RepositoryData = {
+    name: RepositoryName;
+    builtTags: ImageTag[];
+};
+
+type ClusterData = {
+    name: string;
+    connectedAcrs: AcrKey[];
+};
+
+const aksStoreDemoServices = ["ai-service", "makeline-service", "order-service", "product-service", "store-admin", "store-front", "virtual-customer", "virtual-worker"];
+const aksStoreDemoPorts = [5001, 3001, 3000, 3002, 8081, 8080, null, null];
 
 const scenarioDataItems: ScenarioData[] = [
     {
         name: "empty workspace",
         initialState: makeEmptyInitialState("test-workspace"),
-        availableSubscriptions: corpSubs
+        referenceData: {
+            subscriptions: corpSubs.map(sub => createSubscriptionData(sub, []))
+        }
     },
     {
         name: "single service",
@@ -41,25 +124,31 @@ const scenarioDataItems: ScenarioData[] = [
             withBuildConfigs(3000),
             withDeploymentSpecs("manifests"),
             withGitHubWorkflows()),
-        availableSubscriptions: [appDeploymentSub, ...corpSubs]
+        referenceData: {
+            subscriptions: [appDeploymentSub, ...corpSubs].map(sub => createSubscriptionData(sub, ["contoso", "other-app"]))
+        }
     },
     {
         name: "store demo - clean",
         initialState: build(
             makeEmptyInitialState("aks-store-demo"),
-            withAdditionalServices("ai-service", "makeline-service", "order-service", "product-service", "store-admin", "store-front", "virtual-customer", "virtual-worker"),
-            withBuildConfigs(5001, 3001, 3000, 3002, 8081, 8080, null, null)),
-        availableSubscriptions: [testStoreSub, prodStoreSub, ...corpSubs]
+            withAdditionalServices(...aksStoreDemoServices),
+            withBuildConfigs(...aksStoreDemoPorts)),
+        referenceData: {
+            subscriptions: [testStoreSub, prodStoreSub, ...corpSubs].map(sub => createSubscriptionData(sub, ["aks-store-demo", "other-app"]))
+        }
     },
     {
         name: "store demo - populated",
         initialState: build(
             makeEmptyInitialState("aks-store-demo"),
-            withAdditionalServices("ai-service", "makeline-service", "order-service", "product-service", "store-admin", "store-front", "virtual-customer", "virtual-worker"),
+            withAdditionalServices(...aksStoreDemoServices),
             withAzureResources(prodStoreSub, "aks-store-demo"),
             withDeploymentSpecs("manifests"),
             withGitHubWorkflows()),
-        availableSubscriptions: [testStoreSub, prodStoreSub, ...corpSubs]
+        referenceData: {
+            subscriptions: [testStoreSub, prodStoreSub, ...corpSubs].map(sub => createSubscriptionData(sub, ["aks-store-demo", "other-app"]))
+        }
     }
 ];
 
@@ -173,44 +262,64 @@ export function getDraftScenarios() {
         return {
             createNewService: () => undefined,
             getSubscriptionsRequest: handleGetSubscriptionsRequest,
-            getResourceGroupsRequest: handleGetResourceGroupsRequest,
-            getAcrNamesRequest: handleGetAcrNamesRequest,
-            getRepositoriesRequest: handleGetRepositoriesRequest,
-            getBuiltTagsRequest: args => handleGetBuildTagsRequest(args.subscriptionId, args.acrName, args.repositoryName)
+            getResourceGroupsRequest: (key) => handleGetResourceGroupsRequest(key.subscriptionId),
+            getAcrNamesRequest: (key) => handleGetAcrNamesRequest(key.subscriptionId, key.resourceGroup),
+            getRepositoriesRequest: (key) => handleGetRepositoriesRequest(key.subscriptionId, key.resourceGroup, key.acrName),
+            getBuiltTagsRequest: (key) => handleGetBuildTagsRequest(key.subscriptionId, key.resourceGroup, key.acrName, key.repositoryName),
+            getClustersRequest: (key) => handleGetClustersRequest(key.subscriptionId, key.resourceGroup)
         };
 
         async function handleGetSubscriptionsRequest() {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            webview.postGetSubscriptionsResponse(scenarioData.availableSubscriptions);
+            webview.postGetSubscriptionsResponse(scenarioData.referenceData.subscriptions.map(s => s.subscription));
         }
 
-        async function handleGetResourceGroupsRequest(subId: string) {
+        async function handleGetResourceGroupsRequest(subscriptionId: string) {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            const subscription = scenarioData.availableSubscriptions.find(s => s.id === subId);
-            const groupBaseName = alphanumeric(subscription!.name);
-            const knownResourceGroups = [
-                scenarioData.initialState.savedAzureResources?.clusterDefinition?.resourceGroup,
-                scenarioData.initialState.savedAzureResources?.repositoryDefinition?.resourceGroup
-            ].filter(g => !!g) as string[];
-            const generatedResourceGroups = Array.from({length: 10}, (_, i) => `${groupBaseName}-${String(i + 1).padStart(2, '0')}`);
+            const subscriptionData = getSubscriptionData(scenarioData.referenceData, subscriptionId);
             webview.postGetResourceGroupsResponse({
-                subscriptionId: subId,
-                groups: distinct([...knownResourceGroups, ...generatedResourceGroups])
-            })
+                subscriptionId,
+                groups: subscriptionData.resourceGroups.map(g => g.name)
+            });
         }
 
         async function handleGetAcrNamesRequest(subscriptionId: string, resourceGroup: ResourceGroup) {
             await new Promise(resolve => setTimeout(resolve, 1000));
+            const resourceGroupData = getResourceGroupData(scenarioData.referenceData, subscriptionId, resourceGroup);
+            webview.postGetAcrNamesResponse({
+                subscriptionId,
+                resourceGroup,
+                acrNames: resourceGroupData.acrs.map(acr => acr.name)
+            });
         }
 
-        async function handleGetBuildTagsRequest(subscriptionId: string, acrName: string, repositoryName: string) {
+        async function handleGetRepositoriesRequest(subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName) {
             await new Promise(resolve => setTimeout(resolve, 1000));
+            const acrData = getAcrData(scenarioData.referenceData, subscriptionId, resourceGroup, acrName);
+            webview.postGetRepositoriesResponse({
+                subscriptionId,
+                resourceGroup,
+                acrName,
+                repositoryNames: acrData.repositories.map(r => r.name)
+            });
+        }
+
+        async function handleGetBuildTagsRequest(subscriptionId: string, resourceGroup: ResourceGroup, acrName: string, repositoryName: string) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const repoData = getRepositoryData(scenarioData.referenceData, subscriptionId, resourceGroup, acrName, repositoryName);
             webview.postGetBuiltTagsResponse({
                 subscriptionId,
+                resourceGroup,
                 acrName,
                 repositoryName,
-                tags: ["0.0.1", "latest"]
+                tags: repoData.builtTags
             });
+        }
+
+        async function handleGetClustersRequest(subscriptionId: string, resourceGroup: ResourceGroup) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const resourceGroupData = getResourceGroupData(scenarioData.referenceData, subscriptionId, resourceGroup);
+            return resourceGroupData.clusters.map(c => c.name);
         }
     }
 
@@ -220,4 +329,38 @@ export function getDraftScenarios() {
         () => <Draft {...data.initialState} />,
         webview => getMessageHandler(webview, data),
         stateUpdater.vscodeMessageHandler));
+}
+
+function getSubscriptionData(referenceData: ReferenceData, subscriptionId: string): SubscriptionData {
+    const subscriptionData = referenceData.subscriptions.find(s => s.subscription.id === subscriptionId);
+    if (!subscriptionData) throw new Error(`Subscription ${subscriptionId} not found in reference data`);
+    return subscriptionData;
+}
+
+function getResourceGroupData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup): ResourceGroupData {
+    const subscriptionData = getSubscriptionData(referenceData, subscriptionId);
+    const resourceGroupData = subscriptionData.resourceGroups.find(g => g.name === resourceGroup);
+    if (!resourceGroupData) throw new Error(`Resource group ${resourceGroup} not found in ${subscriptionId}`);
+    return resourceGroupData;
+}
+
+function getAcrData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName): AcrData {
+    const resourceGroupData = getResourceGroupData(referenceData, subscriptionId, resourceGroup);
+    const acrData = resourceGroupData.acrs.find(acr => acr.name === acrName);
+    if (!acrData) throw new Error(`ACR ${acrName} not found in resource group ${resourceGroup} in subscription ${subscriptionId}`);
+    return acrData;
+}
+
+function getRepositoryData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): RepositoryData {
+    const acrData = getAcrData(referenceData, subscriptionId, resourceGroup, acrName);
+    const repoData = acrData.repositories.find(r => r.name === repositoryName);
+    if (!repoData) throw new Error(`Repository ${repositoryName} not found in ACR ${acrName} in resource group ${resourceGroup} in subscription ${subscriptionId}`);
+    return repoData;
+}
+
+function getClusterData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, clusterName: ClusterName): ClusterData {
+    const resourceGroupData = getResourceGroupData(referenceData, subscriptionId, resourceGroup);
+    const clusterData = resourceGroupData.clusters.find(c => c.name === clusterName);
+    if (!clusterData) throw new Error(`Cluster ${clusterName} not found in resource group ${resourceGroup} in subscription ${subscriptionId}`);
+    return clusterData;
 }

@@ -2,14 +2,15 @@ import styles from "./Draft.module.css";
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
 import { InitialState } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { getStateManagement } from "../utilities/state";
-import { getSubscriptionReferenceData, stateUpdater, vscode } from "./state";
+import { AcrData, ReferenceData, ResourceGroupData, SubscriptionData, stateUpdater, vscode } from "./state";
 import { FormEvent, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 import { NewServiceDialog } from "./NewServiceDialog";
 import { AzureResources } from "./AzureResources";
 import { Service } from "./Service";
-import { isLoaded, isNotLoaded } from "../utilities/lazy";
+import { isLoaded, isLoading, isNotLoaded } from "../utilities/lazy";
+import { hasValue } from "../utilities/maybe";
 
 export function Draft(initialState: InitialState) {
     const {state, eventHandlers, vsCodeMessageHandlers} = getStateManagement(stateUpdater, initialState);
@@ -24,107 +25,126 @@ export function Draft(initialState: InitialState) {
             eventHandlers.onSetSubscriptionsLoading();
         }
 
-        if (state.azureResources.selectedSubscription !== null && isLoaded(state.referenceData.subscriptions)) {
+        if (state.azureResources.selectedSubscription !== null) {
             const subscriptionId = state.azureResources.selectedSubscription.id;
-            const subscriptionData = state.referenceData.subscriptions.value.find(s => s.subscription.id === subscriptionId);
-            if (!subscriptionData) {
-                // The saved subscription is no longer accessible.
+            const lazySubscriptionData = ReferenceData.getSubscription(state.referenceData, subscriptionId);
+            if (!isLoaded(lazySubscriptionData)) {
+                return;
+            }
+
+            const maybeSubscriptionData = lazySubscriptionData.value;
+            if (!hasValue(maybeSubscriptionData)) {
+                // Not a known subscription.
                 eventHandlers.onSetSubscription(null);
                 return;
             }
 
-            if (isNotLoaded(subscriptionData.resourceGroups)) {
-                vscode.postGetResourceGroupsRequest({subscriptionId});
-                eventHandlers.onSetResourceGroupsLoading({subscriptionId});
-                return;
-            } else if (!isLoaded(subscriptionData.resourceGroups)) {
-                return;
-            }
-
+            const subscriptionData = maybeSubscriptionData.value;
             if (state.azureResources.repositoryDefinition !== null) {
                 const {resourceGroup, acrName, repositoryName} = state.azureResources.repositoryDefinition;
-                const resourceGroupData = subscriptionData.resourceGroups.value.find(group => group.name === resourceGroup);
-                if (!resourceGroupData) {
-                    // The repository resource group is no longer accessible.
+                const lazyResourceGroupData = SubscriptionData.getResourceGroup(subscriptionData, resourceGroup);
+                if (isNotLoaded(lazyResourceGroupData)) {
+                    vscode.postGetResourceGroupsRequest({subscriptionId});
+                    eventHandlers.onSetResourceGroupsLoading({subscriptionId});
+                    return;
+                }
+
+                if (isLoading(lazyResourceGroupData)) {
+                    return;
+                }
+
+                const maybeResourceGroupData = lazyResourceGroupData.value;
+                if (!hasValue(maybeResourceGroupData)) {
                     eventHandlers.onSetRepository(null);
                     return;
                 }
 
-                if (isNotLoaded(resourceGroupData.acrs)) {
+                const resourceGroupData = maybeResourceGroupData.value;
+                const lazyAcrData = ResourceGroupData.getAcr(resourceGroupData, acrName);
+                if (isNotLoaded(lazyAcrData)) {
                     vscode.postGetAcrNamesRequest({subscriptionId, resourceGroup});
                     eventHandlers.onSetAcrsLoading({subscriptionId, resourceGroup});
                     return;
-                } else if (!isLoaded(resourceGroupData.acrs)) {
+                }
+
+                if (isLoading(lazyAcrData)) {
                     return;
                 }
 
-                const acrData = resourceGroupData.acrs.value.find(acr => acr.name === acrName);
-                if (!acrData) {
-                    // The ACR is no longer accessible.
+                const maybeAcrData = lazyAcrData.value;
+                if (!hasValue(maybeAcrData)) {
                     eventHandlers.onSetRepository(null);
                     return;
                 }
 
-                if (isNotLoaded(acrData.repositories)) {
+                const acrData = maybeAcrData.value;
+                const lazyRepositoryData = AcrData.getRepository(acrData, repositoryName);
+                if (isNotLoaded(lazyRepositoryData)) {
                     vscode.postGetRepositoriesRequest({subscriptionId, resourceGroup, acrName});
                     eventHandlers.onSetRepositoriesLoading({subscriptionId, resourceGroup, acrName});
                     return;
-                } else if (!isLoaded(acrData.repositories)) {
+                }
+
+                if (isLoading(lazyRepositoryData)) {
                     return;
                 }
 
-                const repositoryData = acrData.repositories.value.find(repo => repo.name === repositoryName);
-                if (!repositoryData) {
-                    // The repo is no longer accessible.
+                const maybeRepositoryData = lazyRepositoryData.value;
+                if (!hasValue(maybeRepositoryData)) {
                     eventHandlers.onSetRepository(null);
                     return;
                 }
 
+                const repositoryData = maybeRepositoryData.value;
                 if (isNotLoaded(repositoryData.builtTags)) {
                     vscode.postGetBuiltTagsRequest({subscriptionId, resourceGroup, acrName, repositoryName});
                     eventHandlers.onSetBuiltTagsLoading({subscriptionId, resourceGroup, acrName, repositoryName});
-                    return;
-                } else if (!isLoaded(repositoryData.builtTags)) {
                     return;
                 }
             }
 
             if (state.azureResources.clusterDefinition !== null) {
                 const {resourceGroup, name} = state.azureResources.clusterDefinition;
-                const resourceGroupData = subscriptionData.resourceGroups.value.find(group => group.name === resourceGroup);
-                if (!resourceGroupData) {
-                    // The cluster resource group is no longer accessible.
+                const lazyResourceGroupData = SubscriptionData.getResourceGroup(subscriptionData, resourceGroup);
+                if (isNotLoaded(lazyResourceGroupData)) {
+                    vscode.postGetResourceGroupsRequest({subscriptionId});
+                    eventHandlers.onSetResourceGroupsLoading({subscriptionId});
+                    return;
+                }
+
+                if (isLoading(lazyResourceGroupData)) {
+                    return;
+                }
+
+                const maybeResourceGroupData = lazyResourceGroupData.value;
+                if (!hasValue(maybeResourceGroupData)) {
+                    eventHandlers.onSetRepository(null);
+                    return;
+                }
+
+                const resourceGroupData = maybeResourceGroupData.value;
+                const lazyClusterData = ResourceGroupData.getCluster(resourceGroupData, name);
+                if (isNotLoaded(lazyClusterData)) {
+                    vscode.postGetClustersRequest({subscriptionId, resourceGroup});
+                    eventHandlers.onSetClustersLoading({subscriptionId, resourceGroup});
+                    return;
+                }
+
+                if (isLoading(lazyClusterData)) {
+                    return;
+                }
+
+                const maybeClusterData = lazyClusterData.value;
+                if (!hasValue(maybeClusterData)) {
                     eventHandlers.onSetCluster(null);
                     return;
                 }
+
+                const clusterData = maybeClusterData.value;
+                if (isNotLoaded(clusterData.connectedAcrs)) {
+                    // TODO: postGetConnectedAcrsRequest
+                }
             }
-
-            // const usedResourceGroups = [
-            //     state.azureResources.clusterDefinition?.resourceGroup,
-            //     state.azureResources.repositoryDefinition?.resourceGroup
-            // ].filter(g => !!g) as string[];
-            // if (usedResourceGroups.length > 0 && isLoaded(subscriptionData.resourceGroups)) {
-            //     for (const usedResourceGroup of usedResourceGroups) {
-            //         const resourceGroupData = subscriptionData.resourceGroups.value.find(group => group.name === usedResourceGroup)
-            //     }
-            // }
-            // if (!state.azureResources.repositoryDefinition) {
-
-            // }
-        }
-
-        if (state.azureResources.selectedSubscription && isLoaded(state.referenceData.subscriptions) && isNotLoaded(state.referenceData.subscriptions)) {
-            vscode.postGetResourceGroupsRequest(state.azureResources.selectedSubscription.id);
-            eventHandlers.onSetResourceGroupsLoading();
-        }
-
-        if (state.azureResources.selectedSubscription && state.azureResources.repositoryDefinition && isNotLoaded(state.azureResources.builtTags)) {
-            vscode.postGetBuiltTagsRequest({
-                subscriptionId: state.azureResources.selectedSubscription.id,
-                acrName: state.azureResources.repositoryDefinition.acrName,
-                repositoryName: state.azureResources.repositoryDefinition.repositoryName
-            });
-            eventHandlers.onSetBuiltTagsLoading();
         }
     });
 
@@ -147,6 +167,7 @@ export function Draft(initialState: InitialState) {
         */}
         {state.services.length > 0 && (
             <AzureResources
+                referenceData={state.referenceData}
                 resourcesState={state.azureResources}
                 eventHandlers={eventHandlers}
             />
