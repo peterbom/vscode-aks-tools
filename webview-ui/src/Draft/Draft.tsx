@@ -10,7 +10,7 @@ import { NewServiceDialog } from "./NewServiceDialog";
 import { AzureResources } from "./AzureResources";
 import { Service } from "./Service";
 import { Lazy, isLoaded, newLoaded, newLoading, newNotLoaded } from "../utilities/lazy";
-import { Maybe, hasValue, isNothing, nothing } from "../utilities/maybe";
+import { Maybe, asNullable, hasValue, isNothing, nothing } from "../utilities/maybe";
 import { EventHandlerFunc, loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions, noop } from "./dataLoading";
 import { tryGet } from "../utilities/array";
 
@@ -119,7 +119,7 @@ function prepareSubscriptionData(referenceData: ReferenceData, selectedSubscript
 function prepareRepositoryData(lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>>, repositoryDefinition: SavedRepositoryDefinition | null, updates: EventHandlerFunc[]): Lazy<Maybe<RepositoryReferenceData>> {
     let returnValue: Lazy<Maybe<RepositoryReferenceData>> = repositoryDefinition ? newLoading() : newLoaded(nothing()) as Lazy<Maybe<RepositoryReferenceData>>;
 
-    const subscriptionData = isLoaded(lazySubscriptionData) && hasValue(lazySubscriptionData.value) ? lazySubscriptionData.value.value : null;
+    const subscriptionData = isLoaded(lazySubscriptionData) && asNullable(lazySubscriptionData.value) || null;
     if (!subscriptionData || !repositoryDefinition) {
         return returnValue;
     }
@@ -176,7 +176,7 @@ function prepareRepositoryData(lazySubscriptionData: Lazy<Maybe<SubscriptionRefe
 function prepareClusterData(lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>>, clusterDefinition: SavedClusterDefinition | null, updates: EventHandlerFunc[]): Lazy<Maybe<ClusterReferenceData>> {
     let returnValue: Lazy<Maybe<ClusterReferenceData>> = clusterDefinition ? newLoading() : newLoaded(nothing()) as Lazy<Maybe<ClusterReferenceData>>;
 
-    const subscriptionData = isLoaded(lazySubscriptionData) && hasValue(lazySubscriptionData.value) ? lazySubscriptionData.value.value : null;
+    const subscriptionData = isLoaded(lazySubscriptionData) && asNullable(lazySubscriptionData.value) || null;
     if (!subscriptionData || !clusterDefinition) {
         return returnValue;
     }

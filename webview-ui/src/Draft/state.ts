@@ -15,6 +15,7 @@ export type EventDef = {
     createNewService: string;
     setSelectedService: string | null;
     setSubscription: Subscription | null;
+    setSubscriptionDialogShown: boolean;
     setRepositoryDialogShown: boolean;
     setClusterDialogShown: boolean;
     setRepository: SavedRepositoryDefinition | null;
@@ -55,6 +56,7 @@ export type AzureResourcesState = {
     selectedSubscription: Subscription | null;
     clusterDefinition: SavedClusterDefinition | null;
     repositoryDefinition: SavedRepositoryDefinition | null;
+    isSubscriptionDialogShown: boolean;
     isRepositoryDialogShown: boolean;
     isClusterDialogShown: boolean;
 };
@@ -80,6 +82,7 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
             selectedSubscription: initialState.savedAzureResources?.subscription || null,
             clusterDefinition: initialState.savedAzureResources?.clusterDefinition || null,
             repositoryDefinition: initialState.savedAzureResources?.repositoryDefinition || null,
+            isSubscriptionDialogShown: false,
             isRepositoryDialogShown: false,
             isClusterDialogShown: false
         },
@@ -111,6 +114,7 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
         }]}),
         setSelectedService: (state, selectedService) => ({...state, selectedService}),
         setSubscription: (state, subscription) => ({...state, azureResources: {...state.azureResources, selectedSubscription: subscription, clusterDefinition: null, repositoryDefinition: null}}),
+        setSubscriptionDialogShown: (state, shown) => ({...state, azureResources: {...state.azureResources, isSubscriptionDialogShown: shown}}),
         setRepositoryDialogShown: (state, shown) => ({...state, azureResources: {...state.azureResources, isRepositoryDialogShown: shown}}),
         setClusterDialogShown: (state, shown) => ({...state, azureResources: {...state.azureResources, isClusterDialogShown: shown}}),
         setRepository: (state, repositoryDefinition) => ({...state, azureResources: {...state.azureResources, repositoryDefinition}}),

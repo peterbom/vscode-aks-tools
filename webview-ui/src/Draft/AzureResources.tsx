@@ -2,12 +2,11 @@ import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
 import { AzureResourcesState, ClusterReferenceData, EventDef, RepositoryReferenceData, SubscriptionReferenceData } from "./state";
 import { VSCodeButton, VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
-import { Subscription } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { RepositoryDialog } from "./RepositoryDialog";
-import { ResourceSelector } from "../components/ResourceSelector";
-import { Lazy, isLoaded, isLoading, map as lazyMap } from "../utilities/lazy";
-import { Maybe, hasValue } from "../utilities/maybe";
+import { Lazy, isLoaded, isLoading } from "../utilities/lazy";
+import { Maybe, hasValue, map as maybeMap } from "../utilities/maybe";
 import { ClusterDialog } from "./ClusterDialog";
+import { SubscriptionDialog } from "./SubscriptionDialog";
 
 export interface AzureResourcesProps {
     resourcesState: AzureResourcesState;
@@ -23,15 +22,19 @@ export function AzureResources(props: AzureResourcesProps) {
     <>
         <div className={styles.inputContainer}>
             <label htmlFor="subscription" className={styles.label}>Subscription</label>
-            <ResourceSelector<Subscription>
+            {props.resourcesState.selectedSubscription !== null &&
+            <VSCodeTextField
                 id="subscription"
                 className={styles.midControl}
-                resources={lazyMap(props.subscriptionsData, subs => subs.map(s => s.subscription))}
-                selectedItem={props.resourcesState.selectedSubscription}
-                valueGetter={s => s.id}
-                labelGetter={s => s.name}
-                onSelect={props.eventHandlers.onSetSubscription}
+                value={props.resourcesState.selectedSubscription.name}
+                readOnly={true}
             />
+            ||
+            <span className={styles.midControl}>Not configured</span>
+            }
+            <VSCodeButton appearance="secondary" onClick={() => props.eventHandlers.onSetSubscriptionDialogShown(true)} className={styles.sideControl}>
+                {props.resourcesState.selectedSubscription !== null ? "Change" : "Configure"}
+            </VSCodeButton>
 
             <label htmlFor="repository" className={styles.label}>Repository</label>
             {isLoading(props.repositoryData) && <VSCodeProgressRing style={{height: "1rem"}} className={styles.midControl} />}
@@ -78,6 +81,16 @@ export function AzureResources(props: AzureResourcesProps) {
                 }
             </>}
         </div>
+
+        {isLoaded(props.subscriptionData) &&
+        <SubscriptionDialog
+            isShown={props.resourcesState.isSubscriptionDialogShown}
+            key={`sub-${props.resourcesState.isSubscriptionDialogShown}` /* Reset state when shown/hidden */}
+            subscriptionsData={props.subscriptionsData}
+            selectedSubscription={maybeMap(props.subscriptionData.value, s => s.subscription)}
+            eventHandlers={props.eventHandlers}
+        />
+        }
 
         {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) && (
         <>

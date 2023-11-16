@@ -35,3 +35,7 @@ export function map<T, U>(m: Maybe<T>, fn: (value: T) => U): Maybe<U> {
 export function orDefault<T>(m: Maybe<T>, fallback: T): T {
     return hasValue(m) ? m.value : fallback;
 }
+
+export function asNullable<T>(m: Maybe<T>): T | null {
+    return m.hasValue ? m.value : null;
+}
