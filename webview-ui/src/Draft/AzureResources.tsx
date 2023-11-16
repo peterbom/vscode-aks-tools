@@ -48,9 +48,11 @@ export function AzureResources(props: AzureResourcesProps) {
                 <span className={styles.midControl}>Not configured</span>
                 }
 
+                {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) &&
                 <VSCodeButton appearance="secondary" onClick={() => props.eventHandlers.onSetRepositoryDialogShown(true)} className={styles.sideControl}>
                     {hasValue(props.repositoryData.value) ? "Change" : "Configure"}
                 </VSCodeButton>
+                }
             </>}
 
             <label htmlFor="cluster" className={styles.label}>Cluster</label>
@@ -69,9 +71,11 @@ export function AzureResources(props: AzureResourcesProps) {
                 <span className={styles.midControl}>Not configured</span>
                 }
 
+                {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) &&
                 <VSCodeButton appearance="secondary" onClick={() => props.eventHandlers.onSetClusterDialogShown(true)} className={styles.sideControl}>
                     {hasValue(props.clusterData.value) ? "Change" : "Configure"}
                 </VSCodeButton>
+                }
             </>}
         </div>
 

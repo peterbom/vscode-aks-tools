@@ -1,14 +1,15 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Dialog } from "../components/Dialog";
 import { VSCodeButton, VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
 import { EventDef, SubscriptionReferenceData } from "./state";
-import { Lazy, isLoaded, map as lazyMap, newNotLoaded } from "../utilities/lazy";
+import { Lazy, isLoaded, map as lazyMap, newLoaded, newLoading, newNotLoaded } from "../utilities/lazy";
 import { ResourceSelector } from "../components/ResourceSelector";
 import { AcrName, ClusterName, ResourceGroup, SavedClusterDefinition } from "../../../src/webview-contract/webviewDefinitions/draft";
-import { loadClusters, loadResourceGroups } from "./dataLoading";
+import { EventHandlerFunc, loadClusters, loadResourceGroups } from "./dataLoading";
 import { getOrThrow } from "../utilities/array";
+import { nothing } from "../utilities/maybe";
 
 export interface ClusterDialogProps {
     isShown: boolean;
@@ -21,27 +22,12 @@ export function ClusterDialog(props: ClusterDialogProps) {
     const [resourceGroup, setResourceGroup] = useState(props.clusterDefinition?.resourceGroup || "");
     const [clusterName, setClusterName] = useState(props.clusterDefinition?.name || "");
 
-    let lazyGroups: Lazy<ResourceGroup[]> = newNotLoaded();
-    let lazyClusters: Lazy<ClusterName[]> = newNotLoaded();
+    const updates: EventHandlerFunc[] = [];
+    const {lazyGroups, lazyClusters} = prepareData(props.subscriptionData, resourceGroup, updates);
 
-    (function prepareData() {
-        const resourceGroupsData = props.subscriptionData.resourceGroups;
-        lazyGroups = lazyMap(resourceGroupsData, data => data.map(g => g.key.resourceGroup));
-        if (!isLoaded(resourceGroupsData)) {
-            loadResourceGroups(props.subscriptionData, props.eventHandlers);
-            return;
-        }
-    
-        if (resourceGroup) {
-            const resourceGroupData = getOrThrow(resourceGroupsData.value, g => g.key.resourceGroup === resourceGroup, `${resourceGroup} not found`);
-            const clustersData = resourceGroupData.clusters;
-            lazyClusters = lazyMap(clustersData, data => data.map(g => g.key.clusterName));
-            if (!isLoaded(clustersData)) {
-                loadClusters(resourceGroupData, props.eventHandlers);
-                return;
-            }
-        }
-    })();
+    useEffect(() => {
+        updates.map(fn => fn(props.eventHandlers));
+    });
 
     function canCreate() {
         // TODO:
@@ -101,4 +87,29 @@ export function ClusterDialog(props: ClusterDialogProps) {
             </form>
         </Dialog>
     );
+}
+
+function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup: ResourceGroup, updates: EventHandlerFunc[]) {
+    const returnValue = {
+        lazyGroups: newLoading() as Lazy<ResourceGroup[]>,
+        lazyClusters: (resourceGroup ? newLoading() : newLoaded(nothing())) as Lazy<ClusterName[]>
+    };
+
+    const resourceGroupsData = subscriptionData.resourceGroups;
+    returnValue.lazyGroups = lazyMap(resourceGroupsData, data => data.map(g => g.key.resourceGroup));
+    if (!isLoaded(resourceGroupsData)) {
+        updates.push(loadResourceGroups(subscriptionData));
+        return returnValue;
+    }
+
+    if (resourceGroup) {
+        const resourceGroupData = getOrThrow(resourceGroupsData.value, g => g.key.resourceGroup === resourceGroup, `${resourceGroup} not found`);
+        const clustersData = resourceGroupData.clusters;
+        returnValue.lazyClusters = lazyMap(clustersData, data => data.map(g => g.key.clusterName));
+        if (!isLoaded(clustersData)) {
+            updates.push(loadClusters(resourceGroupData));
+        }
+    }
+
+    return returnValue;
 }

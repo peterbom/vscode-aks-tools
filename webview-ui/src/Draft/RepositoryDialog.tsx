@@ -1,14 +1,15 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Dialog } from "../components/Dialog";
 import { VSCodeButton, VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
 import { EventDef, SubscriptionReferenceData } from "./state";
-import { Lazy, isLoaded, map as lazyMap, newNotLoaded } from "../utilities/lazy";
+import { Lazy, isLoaded, map as lazyMap, newLoaded, newLoading } from "../utilities/lazy";
 import { ResourceSelector } from "../components/ResourceSelector";
 import { AcrName, RepositoryName, ResourceGroup, SavedRepositoryDefinition } from "../../../src/webview-contract/webviewDefinitions/draft";
-import { loadAcrs, loadRepositories, loadResourceGroups } from "./dataLoading";
+import { EventHandlerFunc, loadAcrs, loadRepositories, loadResourceGroups } from "./dataLoading";
 import { getOrThrow } from "../utilities/array";
+import { nothing } from "../utilities/maybe";
 
 export interface RepositoryDialogProps {
     isShown: boolean;
@@ -22,38 +23,12 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
     const [acrName, setAcrName] = useState(props.repositoryDefinition?.acrName || "");
     const [repositoryName, setRepositoryName] = useState(props.repositoryDefinition?.repositoryName || "");
 
-    let lazyGroups: Lazy<ResourceGroup[]> = newNotLoaded();
-    let lazyAcrs: Lazy<AcrName[]> = newNotLoaded();
-    let lazyRepositories: Lazy<RepositoryName[]> = newNotLoaded();
+    const updates: EventHandlerFunc[] = [];
+    const {lazyGroups, lazyAcrs, lazyRepositories} = prepareData(props.subscriptionData, resourceGroup, acrName, updates);
 
-    (function prepareData() {
-        const resourceGroupsData = props.subscriptionData.resourceGroups;
-        lazyGroups = lazyMap(resourceGroupsData, data => data.map(g => g.key.resourceGroup));
-        if (!isLoaded(resourceGroupsData)) {
-            loadResourceGroups(props.subscriptionData, props.eventHandlers);
-            return;
-        }
-    
-        if (resourceGroup) {
-            const resourceGroupData = getOrThrow(resourceGroupsData.value, g => g.key.resourceGroup === resourceGroup, `${resourceGroup} not found`);
-            const acrsData = resourceGroupData.acrs;
-            lazyAcrs = lazyMap(acrsData, data => data.map(g => g.key.acrName));
-            if (!isLoaded(acrsData)) {
-                loadAcrs(resourceGroupData, props.eventHandlers);
-                return;
-            }
-
-            if (acrName) {
-                const acrData = getOrThrow(acrsData.value, acr => acr.key.acrName === acrName, `${acrName} not found`);
-                const repositoriesData = acrData.repositories;
-                lazyRepositories = lazyMap(repositoriesData, data => data.map(g => g.key.repositoryName));
-                if (!isLoaded(repositoriesData)) {
-                    loadRepositories(acrData, props.eventHandlers);
-                    return;
-                }
-            }
-        }
-    })();
+    useEffect(() => {
+        updates.map(fn => fn(props.eventHandlers));
+    });
 
     function canCreate() {
         // TODO:
@@ -125,4 +100,40 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
             </form>
         </Dialog>
     );
+}
+
+function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, updates: EventHandlerFunc[]) {
+    const returnValue = {
+        lazyGroups: newLoading() as Lazy<ResourceGroup[]>,
+        lazyAcrs: (resourceGroup ? newLoading() : newLoaded(nothing())) as Lazy<AcrName[]>,
+        lazyRepositories: (resourceGroup && acrName ? newLoading() : newLoaded(nothing())) as Lazy<RepositoryName[]>
+    };
+
+    const resourceGroupsData = subscriptionData.resourceGroups;
+    returnValue.lazyGroups = lazyMap(resourceGroupsData, data => data.map(g => g.key.resourceGroup));
+    if (!isLoaded(resourceGroupsData)) {
+        updates.push(loadResourceGroups(subscriptionData));
+        return returnValue;
+    }
+
+    if (resourceGroup) {
+        const resourceGroupData = getOrThrow(resourceGroupsData.value, g => g.key.resourceGroup === resourceGroup, `${resourceGroup} not found`);
+        const acrsData = resourceGroupData.acrs;
+        returnValue.lazyAcrs = lazyMap(acrsData, data => data.map(g => g.key.acrName));
+        if (!isLoaded(acrsData)) {
+            updates.push(loadAcrs(resourceGroupData));
+            return returnValue;
+        }
+
+        if (acrName) {
+            const acrData = getOrThrow(acrsData.value, acr => acr.key.acrName === acrName, `${acrName} not found`);
+            const repositoriesData = acrData.repositories;
+            returnValue.lazyRepositories = lazyMap(repositoriesData, data => data.map(g => g.key.repositoryName));
+            if (!isLoaded(repositoriesData)) {
+                updates.push(loadRepositories(acrData));
+            }
+        }
+    }
+
+    return returnValue;
 }

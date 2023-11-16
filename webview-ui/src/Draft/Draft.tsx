@@ -1,17 +1,17 @@
 import styles from "./Draft.module.css";
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
-import { ImageTag, InitialState } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { InitialState, SavedClusterDefinition, SavedRepositoryDefinition, Subscription } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { getStateManagement } from "../utilities/state";
-import { ClusterReferenceData, RepositoryReferenceData, SubscriptionReferenceData, stateUpdater, vscode } from "./state";
+import { ClusterReferenceData, ReferenceData, RepositoryReferenceData, SubscriptionReferenceData, stateUpdater, vscode } from "./state";
 import { FormEvent, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 import { NewServiceDialog } from "./NewServiceDialog";
 import { AzureResources } from "./AzureResources";
 import { Service } from "./Service";
-import { Lazy, isLoaded, newLoaded, newLoading } from "../utilities/lazy";
-import { Maybe, isNothing, nothing } from "../utilities/maybe";
-import { loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions } from "./dataLoading";
+import { Lazy, isLoaded, newLoaded, newLoading, newNotLoaded } from "../utilities/lazy";
+import { Maybe, hasValue, isNothing, nothing } from "../utilities/maybe";
+import { EventHandlerFunc, loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions, noop } from "./dataLoading";
 import { tryGet } from "../utilities/array";
 
 export function Draft(initialState: InitialState) {
@@ -21,108 +21,14 @@ export function Draft(initialState: InitialState) {
         vscode.subscribeToMessages(vsCodeMessageHandlers);
     }, []);
 
-    const subscriptionsData = state.referenceData.subscriptions;
-    let lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>> = state.azureResources.selectedSubscription ? newLoading() : newLoaded(nothing());
-    let lazyRepositoryData: Lazy<Maybe<RepositoryReferenceData>> = state.azureResources.repositoryDefinition ? newLoading() : newLoaded(nothing());
-    let lazyClusterData: Lazy<Maybe<ClusterReferenceData>> = state.azureResources.clusterDefinition ? newLoading() : newLoaded(nothing());
+    const updates: EventHandlerFunc[] = [];
+    const lazySubscriptionData = prepareSubscriptionData(state.referenceData, state.azureResources.selectedSubscription, updates);
+    const lazyRepositoryData = prepareRepositoryData(lazySubscriptionData, state.azureResources.repositoryDefinition, updates);
+    const lazyClusterData = prepareClusterData(lazySubscriptionData, state.azureResources.clusterDefinition, updates);
 
-    (function prepareData() {
-        if (!isLoaded(subscriptionsData)) {
-            loadSubscriptions(state.referenceData, eventHandlers);
-            return;
-        }
-    
-        if (state.azureResources.selectedSubscription !== null) {
-            const subscriptionId = state.azureResources.selectedSubscription.id;
-            const subscriptionData = tryGet(subscriptionsData.value, sub => sub.subscription.id === subscriptionId);
-            lazySubscriptionData = newLoaded(subscriptionData);
-            if (isNothing(subscriptionData)) {
-                // Our selected subscription is not known. Reset it.
-                eventHandlers.onSetSubscription(null);
-                return;
-            }
-    
-            if (state.azureResources.repositoryDefinition !== null) {
-                const {resourceGroup, acrName, repositoryName} = state.azureResources.repositoryDefinition;
-                const lazyResourceGroupsData = subscriptionData.value.resourceGroups;
-                if (!isLoaded(lazyResourceGroupsData)) {
-                    loadResourceGroups(subscriptionData.value, eventHandlers)
-                    return;
-                }
-    
-                const resourceGroupData = tryGet(lazyResourceGroupsData.value, group => group.key.resourceGroup === resourceGroup);
-                if (isNothing(resourceGroupData)) {
-                    // Not a known resource group, so the repository configuration is invalid. Reset it.
-                    eventHandlers.onSetRepository(null);
-                    return;
-                }
-    
-                const lazyAcrsData = resourceGroupData.value.acrs;
-                if (!isLoaded(lazyAcrsData)) {
-                    loadAcrs(resourceGroupData.value, eventHandlers)
-                    return;
-                }
-    
-                const acrData = tryGet(lazyAcrsData.value, acr => acr.key.acrName === acrName);
-                if (isNothing(acrData)) {
-                    // Not a known ACR, so the repository configuration is invalid. Reset it.
-                    eventHandlers.onSetRepository(null);
-                    return;
-                }
-    
-                const lazyRepositoriesData = acrData.value.repositories;
-                if (!isLoaded(lazyRepositoriesData)) {
-                    loadRepositories(acrData.value, eventHandlers);
-                    return;
-                }
-    
-                const repositoryData = tryGet(lazyRepositoriesData.value, repo => repo.key.repositoryName === repositoryName);
-                lazyRepositoryData = newLoaded(repositoryData);
-                if (isNothing(repositoryData)) {
-                    // Not a known repository, so the repository configuration is invalid. Reset it.
-                    eventHandlers.onSetRepository(null);
-                    return;
-                }
-    
-                const lazyBuiltTags = repositoryData.value.builtTags;
-                if (!isLoaded(lazyBuiltTags)) {
-                    loadBuiltTags(repositoryData.value, eventHandlers);
-                    return;
-                }
-            }
-    
-            if (state.azureResources.clusterDefinition !== null) {
-                const {resourceGroup, name} = state.azureResources.clusterDefinition;
-                const lazyResourceGroupsData = subscriptionData.value.resourceGroups;
-                if (!isLoaded(lazyResourceGroupsData)) {
-                    loadResourceGroups(subscriptionData.value, eventHandlers);
-                    return;
-                }
-    
-                const resourceGroupData = tryGet(lazyResourceGroupsData.value, group => group.key.resourceGroup === resourceGroup);
-                if (isNothing(resourceGroupData)) {
-                    // Not a known resource group, so the cluster configuration is invalid. Reset it.
-                    eventHandlers.onSetCluster(null);
-                    return;
-                }
-    
-                const lazyClustersData = resourceGroupData.value.clusters;
-                if (!isLoaded(lazyClustersData)) {
-                    loadClusters(resourceGroupData.value, eventHandlers);
-                    return;
-                }
-    
-                const clusterData = tryGet(lazyClustersData.value, cluster => cluster.key.clusterName === name);
-                lazyClusterData = newLoaded(clusterData);
-                if (isNothing(clusterData)) {
-                    // Not a known cluster, so the cluster configuration is invalid. Reset it.
-                    eventHandlers.onSetCluster(null);
-                }
-    
-                // TODO: loadConnectedAcrs (and postGetConnectedAcrsRequest)
-            }
-        }
-    })();
+    useEffect(() => {
+        updates.map(fn => fn(eventHandlers));
+    });
 
     function handleSelectedServiceChange(e: Event | FormEvent<HTMLElement>) {
         const elem = e.target as HTMLInputElement;
@@ -144,7 +50,7 @@ export function Draft(initialState: InitialState) {
         {state.services.length > 0 && (
             <AzureResources
                 resourcesState={state.azureResources}
-                subscriptionsData={subscriptionsData}
+                subscriptionsData={state.referenceData.subscriptions}
                 subscriptionData={lazySubscriptionData}
                 repositoryData={lazyRepositoryData}
                 clusterData={lazyClusterData}
@@ -188,4 +94,121 @@ export function Draft(initialState: InitialState) {
         {selectedServiceState && state.azureResources && <Service azureResourceState={state.azureResources} serviceState={selectedServiceState} eventHandlers={eventHandlers} />}
     </>
     );
+}
+
+function prepareSubscriptionData(referenceData: ReferenceData, selectedSubscription: Subscription | null, updates: EventHandlerFunc[]): Lazy<Maybe<SubscriptionReferenceData>> {
+    let returnValue: Lazy<Maybe<SubscriptionReferenceData>> = selectedSubscription ? newLoading() : newLoaded(nothing());
+
+    if (!isLoaded(referenceData.subscriptions)) {
+        updates.push(loadSubscriptions(referenceData));
+        return returnValue;
+    }
+
+    if (selectedSubscription !== null) {
+        const subscriptionData = tryGet(referenceData.subscriptions.value, sub => sub.subscription.id === selectedSubscription.id);
+        returnValue = newLoaded(subscriptionData);
+        if (isNothing(subscriptionData)) {
+            // Our selected subscription is not known. Reset it.
+            updates.push(e => e.onSetSubscription(null));
+        }
+    }
+
+    return returnValue;
+}
+
+function prepareRepositoryData(lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>>, repositoryDefinition: SavedRepositoryDefinition | null, updates: EventHandlerFunc[]): Lazy<Maybe<RepositoryReferenceData>> {
+    let returnValue: Lazy<Maybe<RepositoryReferenceData>> = repositoryDefinition ? newLoading() : newLoaded(nothing()) as Lazy<Maybe<RepositoryReferenceData>>;
+
+    const subscriptionData = isLoaded(lazySubscriptionData) && hasValue(lazySubscriptionData.value) ? lazySubscriptionData.value.value : null;
+    if (!subscriptionData || !repositoryDefinition) {
+        return returnValue;
+    }
+
+    const {resourceGroup, acrName, repositoryName} = repositoryDefinition;
+    const lazyResourceGroupsData = subscriptionData.resourceGroups;
+    if (!isLoaded(lazyResourceGroupsData)) {
+        updates.push(loadResourceGroups(subscriptionData));
+        return returnValue;
+    }
+
+    const resourceGroupData = tryGet(lazyResourceGroupsData.value, group => group.key.resourceGroup === resourceGroup);
+    if (isNothing(resourceGroupData)) {
+        // Not a known resource group, so the repository configuration is invalid. Reset it.
+        updates.push(e => e.onSetRepository(null));
+        return returnValue;
+    }
+
+    const lazyAcrsData = resourceGroupData.value.acrs;
+    if (!isLoaded(lazyAcrsData)) {
+        updates.push(loadAcrs(resourceGroupData.value));
+        return returnValue;
+    }
+
+    const acrData = tryGet(lazyAcrsData.value, acr => acr.key.acrName === acrName);
+    if (isNothing(acrData)) {
+        // Not a known ACR, so the repository configuration is invalid. Reset it.
+        updates.push(e => e.onSetRepository(null));
+        return returnValue;
+    }
+
+    const lazyRepositoriesData = acrData.value.repositories;
+    if (!isLoaded(lazyRepositoriesData)) {
+        updates.push(loadRepositories(acrData.value));
+        return returnValue;
+    }
+
+    const repositoryData = tryGet(lazyRepositoriesData.value, repo => repo.key.repositoryName === repositoryName);
+    returnValue = newLoaded(repositoryData);
+    if (isNothing(repositoryData)) {
+        // Not a known repository, so the repository configuration is invalid. Reset it.
+        updates.push(e => e.onSetRepository(null));
+        return returnValue;
+    }
+
+    const lazyBuiltTags = repositoryData.value.builtTags;
+    if (!isLoaded(lazyBuiltTags)) {
+        updates.push(loadBuiltTags(repositoryData.value));
+    }
+
+    return returnValue;
+}
+
+function prepareClusterData(lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>>, clusterDefinition: SavedClusterDefinition | null, updates: EventHandlerFunc[]): Lazy<Maybe<ClusterReferenceData>> {
+    let returnValue: Lazy<Maybe<ClusterReferenceData>> = clusterDefinition ? newLoading() : newLoaded(nothing()) as Lazy<Maybe<ClusterReferenceData>>;
+
+    const subscriptionData = isLoaded(lazySubscriptionData) && hasValue(lazySubscriptionData.value) ? lazySubscriptionData.value.value : null;
+    if (!subscriptionData || !clusterDefinition) {
+        return returnValue;
+    }
+
+    const {resourceGroup, name: clusterName} = clusterDefinition;
+    const lazyResourceGroupsData = subscriptionData.resourceGroups;
+    if (!isLoaded(lazyResourceGroupsData)) {
+        updates.push(loadResourceGroups(subscriptionData));
+        return returnValue;
+    }
+
+    const resourceGroupData = tryGet(lazyResourceGroupsData.value, group => group.key.resourceGroup === resourceGroup);
+    if (isNothing(resourceGroupData)) {
+        // Not a known resource group, so the cluster configuration is invalid. Reset it.
+        updates.push(e => e.onSetCluster(null));
+        return returnValue;
+    }
+
+    const lazyClustersData = resourceGroupData.value.clusters;
+    if (!isLoaded(lazyClustersData)) {
+        updates.push(loadClusters(resourceGroupData.value));
+        return returnValue;
+    }
+
+    const clusterData = tryGet(lazyClustersData.value, cluster => cluster.key.clusterName === clusterName);
+    returnValue = newLoaded(clusterData);
+    if (isNothing(clusterData)) {
+        // Not a known cluster, so the cluster configuration is invalid. Reset it.
+        updates.push(e => e.onSetCluster(null));
+    }
+
+    // TODO: loadConnectedAcrs (and postGetConnectedAcrsRequest)
+
+    return returnValue;
 }

@@ -2,45 +2,61 @@ import { isNotLoaded } from "../utilities/lazy";
 import { EventHandlers } from "../utilities/state";
 import { AcrReferenceData, EventDef, ReferenceData, RepositoryReferenceData, ResourceGroupReferenceData, SubscriptionReferenceData, vscode } from "./state";
 
-export function loadSubscriptions(referenceData: ReferenceData, eventHandlers: EventHandlers<EventDef>): void {
+export type EventHandlerFunc = (eventHandlers: EventHandlers<EventDef>) => void;
+
+export const noop: EventHandlerFunc = () => {};
+
+export function loadSubscriptions(referenceData: ReferenceData): EventHandlerFunc {
     if (isNotLoaded(referenceData.subscriptions)) {
         vscode.postGetSubscriptionsRequest();
-        eventHandlers.onSetSubscriptionsLoading();
+        return e => e.onSetSubscriptionsLoading();
     }
+
+    return noop;
 }
 
-export function loadResourceGroups(subscriptionData: SubscriptionReferenceData, eventHandlers: EventHandlers<EventDef>): void {
+export function loadResourceGroups(subscriptionData: SubscriptionReferenceData): EventHandlerFunc {
     const subscriptionId = subscriptionData.subscription.id;
     if (isNotLoaded(subscriptionData.resourceGroups)) {
         vscode.postGetResourceGroupsRequest({subscriptionId});
-        eventHandlers.onSetResourceGroupsLoading({subscriptionId});
+        return e => e.onSetResourceGroupsLoading({subscriptionId});
     }
+
+    return noop;
 }
 
-export function loadAcrs(resourceGroupData: ResourceGroupReferenceData, eventHandlers: EventHandlers<EventDef>): void {
+export function loadAcrs(resourceGroupData: ResourceGroupReferenceData): EventHandlerFunc {
     if (isNotLoaded(resourceGroupData.acrs)) {
         vscode.postGetAcrNamesRequest(resourceGroupData.key);
-        eventHandlers.onSetAcrsLoading(resourceGroupData.key);
+        return e => e.onSetAcrsLoading(resourceGroupData.key);
     }
+
+    return noop;
 }
 
-export function loadRepositories(acrData: AcrReferenceData, eventHandlers: EventHandlers<EventDef>): void {
+export function loadRepositories(acrData: AcrReferenceData): EventHandlerFunc {
     if (isNotLoaded(acrData.repositories)) {
         vscode.postGetRepositoriesRequest(acrData.key);
-        eventHandlers.onSetRepositoriesLoading(acrData.key);
+        return e => e.onSetRepositoriesLoading(acrData.key);
     }
+
+    return noop;
 }
 
-export function loadBuiltTags(repositoryData: RepositoryReferenceData, eventHandlers: EventHandlers<EventDef>): void {
+export function loadBuiltTags(repositoryData: RepositoryReferenceData): EventHandlerFunc {
     if (isNotLoaded(repositoryData.builtTags)) {
         vscode.postGetBuiltTagsRequest(repositoryData.key);
-        eventHandlers.onSetBuiltTagsLoading(repositoryData.key);
+        return e => e.onSetBuiltTagsLoading(repositoryData.key);
     }
+
+    return noop;
 }
 
-export function loadClusters(resourceGroupData: ResourceGroupReferenceData, eventHandlers: EventHandlers<EventDef>): void {
+export function loadClusters(resourceGroupData: ResourceGroupReferenceData): EventHandlerFunc {
     if (isNotLoaded(resourceGroupData.clusters)) {
         vscode.postGetClustersRequest(resourceGroupData.key);
-        eventHandlers.onSetClustersLoading(resourceGroupData.key);
+        return e => e.onSetClustersLoading(resourceGroupData.key);
     }
+
+    return noop;
 }
