@@ -4,12 +4,12 @@ import { VSCodeButton, VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
 import { EventDef, SubscriptionReferenceData } from "./state";
-import { Lazy, isLoaded, map as lazyMap, newLoaded, newLoading } from "../utilities/lazy";
+import { Lazy, isLoaded, map as lazyMap, newLoading } from "../utilities/lazy";
 import { ResourceSelector } from "../components/ResourceSelector";
 import { AcrName, RepositoryName, ResourceGroup, SavedRepositoryDefinition } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { EventHandlerFunc, loadAcrs, loadRepositories, loadResourceGroups } from "./dataLoading";
 import { getOrThrow } from "../utilities/array";
-import { nothing } from "../utilities/maybe";
+import { Maybe, hasValue, just, nothing } from "../utilities/maybe";
 
 export interface RepositoryDialogProps {
     isShown: boolean;
@@ -69,26 +69,30 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
                     />
 
                     <label htmlFor="acr-name-input" className={styles.label}>ACR Name</label>
+                    {hasValue(lazyAcrs) && 
                     <ResourceSelector<AcrName>
                         id="acr-name-input"
                         className={styles.midControl}
-                        resources={lazyAcrs}
+                        resources={lazyAcrs.value}
                         selectedItem={acrName}
                         valueGetter={n => n}
                         labelGetter={n => n}
                         onSelect={n => setAcrName(n || "")}
                     />
+                    }
 
                     <label htmlFor="repository-name-input" className={styles.label}>Repository Name</label>
+                    {hasValue(lazyRepositories) &&
                     <ResourceSelector<RepositoryName>
                         id="repository-name-input"
                         className={styles.midControl}
-                        resources={lazyRepositories}
+                        resources={lazyRepositories.value}
                         selectedItem={repositoryName}
                         valueGetter={n => n}
                         labelGetter={n => n}
                         onSelect={n => setRepositoryName(n || "")}
                     />
+                    }
                 </div>
     
                 <VSCodeDivider/>
@@ -102,11 +106,17 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
     );
 }
 
-function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, updates: EventHandlerFunc[]) {
-    const returnValue = {
-        lazyGroups: newLoading() as Lazy<ResourceGroup[]>,
-        lazyAcrs: (resourceGroup ? newLoading() : newLoaded(nothing())) as Lazy<AcrName[]>,
-        lazyRepositories: (resourceGroup && acrName ? newLoading() : newLoaded(nothing())) as Lazy<RepositoryName[]>
+type LocalData = {
+    lazyGroups: Lazy<ResourceGroup[]>;
+    lazyAcrs: Maybe<Lazy<AcrName[]>>;
+    lazyRepositories: Maybe<Lazy<RepositoryName[]>>;
+};
+
+function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, updates: EventHandlerFunc[]): LocalData {
+    const returnValue: LocalData = {
+        lazyGroups: newLoading(),
+        lazyAcrs: resourceGroup ? just(newLoading()) : nothing(),
+        lazyRepositories: resourceGroup && acrName ? just(newLoading()) : nothing()
     };
 
     const resourceGroupsData = subscriptionData.resourceGroups;
@@ -119,7 +129,7 @@ function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup:
     if (resourceGroup) {
         const resourceGroupData = getOrThrow(resourceGroupsData.value, g => g.key.resourceGroup === resourceGroup, `${resourceGroup} not found`);
         const acrsData = resourceGroupData.acrs;
-        returnValue.lazyAcrs = lazyMap(acrsData, data => data.map(g => g.key.acrName));
+        returnValue.lazyAcrs = just(lazyMap(acrsData, data => data.map(g => g.key.acrName)));
         if (!isLoaded(acrsData)) {
             updates.push(loadAcrs(resourceGroupData));
             return returnValue;
@@ -128,7 +138,7 @@ function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup:
         if (acrName) {
             const acrData = getOrThrow(acrsData.value, acr => acr.key.acrName === acrName, `${acrName} not found`);
             const repositoriesData = acrData.repositories;
-            returnValue.lazyRepositories = lazyMap(repositoriesData, data => data.map(g => g.key.repositoryName));
+            returnValue.lazyRepositories = just(lazyMap(repositoriesData, data => data.map(g => g.key.repositoryName)));
             if (!isLoaded(repositoriesData)) {
                 updates.push(loadRepositories(acrData));
             }

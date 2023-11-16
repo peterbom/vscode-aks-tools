@@ -9,7 +9,7 @@ import { ResourceSelector } from "../components/ResourceSelector";
 import { AcrName, ClusterName, ResourceGroup, SavedClusterDefinition } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { EventHandlerFunc, loadClusters, loadResourceGroups } from "./dataLoading";
 import { getOrThrow } from "../utilities/array";
-import { nothing } from "../utilities/maybe";
+import { Maybe, hasValue, just, nothing } from "../utilities/maybe";
 
 export interface ClusterDialogProps {
     isShown: boolean;
@@ -67,15 +67,17 @@ export function ClusterDialog(props: ClusterDialogProps) {
                     />
 
                     <label htmlFor="cluster-name-input" className={styles.label}>Cluster Name</label>
+                    {hasValue(lazyClusters) &&
                     <ResourceSelector<AcrName>
                         id="cluster-name-input"
                         className={styles.midControl}
-                        resources={lazyClusters}
+                        resources={lazyClusters.value}
                         selectedItem={clusterName}
                         valueGetter={n => n}
                         labelGetter={n => n}
                         onSelect={n => setClusterName(n || "")}
                     />
+                    }
                 </div>
     
                 <VSCodeDivider/>
@@ -89,10 +91,15 @@ export function ClusterDialog(props: ClusterDialogProps) {
     );
 }
 
-function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup: ResourceGroup, updates: EventHandlerFunc[]) {
-    const returnValue = {
-        lazyGroups: newLoading() as Lazy<ResourceGroup[]>,
-        lazyClusters: (resourceGroup ? newLoading() : newLoaded(nothing())) as Lazy<ClusterName[]>
+type LocalData = {
+    lazyGroups: Lazy<ResourceGroup[]>;
+    lazyClusters: Maybe<Lazy<ClusterName[]>>;
+};
+
+function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup: ResourceGroup, updates: EventHandlerFunc[]): LocalData {
+    const returnValue: LocalData = {
+        lazyGroups: newLoading(),
+        lazyClusters: resourceGroup ? just(newLoading()) : nothing()
     };
 
     const resourceGroupsData = subscriptionData.resourceGroups;
@@ -105,7 +112,7 @@ function prepareData(subscriptionData: SubscriptionReferenceData, resourceGroup:
     if (resourceGroup) {
         const resourceGroupData = getOrThrow(resourceGroupsData.value, g => g.key.resourceGroup === resourceGroup, `${resourceGroup} not found`);
         const clustersData = resourceGroupData.clusters;
-        returnValue.lazyClusters = lazyMap(clustersData, data => data.map(g => g.key.clusterName));
+        returnValue.lazyClusters = just(lazyMap(clustersData, data => data.map(g => g.key.clusterName)));
         if (!isLoaded(clustersData)) {
             updates.push(loadClusters(resourceGroupData));
         }
