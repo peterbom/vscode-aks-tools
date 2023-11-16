@@ -1,5 +1,5 @@
 import { MessageHandler, MessageSink } from "../../../src/webview-contract/messaging";
-import { AcrKey, AcrName, ClusterName, DeploymentSpecType, ImageTag, InitialState, RepositoryName, ResourceGroup, Subscription, ToVsCodeMsgDef, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { AcrKey, AcrName, ClusterKey, ClusterName, DeploymentSpecType, ImageTag, InitialState, RepositoryKey, RepositoryName, ResourceGroup, ResourceGroupKey, Subscription, SubscriptionKey, ToVsCodeMsgDef, ToWebViewMsgDef } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { Draft } from "../Draft/Draft";
 import { stateUpdater } from "../Draft/state";
 import { Scenario } from "../utilities/manualTest";
@@ -262,11 +262,11 @@ export function getDraftScenarios() {
         return {
             createNewService: () => undefined,
             getSubscriptionsRequest: handleGetSubscriptionsRequest,
-            getResourceGroupsRequest: (key) => handleGetResourceGroupsRequest(key.subscriptionId),
-            getAcrNamesRequest: (key) => handleGetAcrNamesRequest(key.subscriptionId, key.resourceGroup),
-            getRepositoriesRequest: (key) => handleGetRepositoriesRequest(key.subscriptionId, key.resourceGroup, key.acrName),
-            getBuiltTagsRequest: (key) => handleGetBuildTagsRequest(key.subscriptionId, key.resourceGroup, key.acrName, key.repositoryName),
-            getClustersRequest: (key) => handleGetClustersRequest(key.subscriptionId, key.resourceGroup)
+            getResourceGroupsRequest: handleGetResourceGroupsRequest,
+            getAcrNamesRequest: handleGetAcrNamesRequest,
+            getRepositoriesRequest: handleGetRepositoriesRequest,
+            getBuiltTagsRequest: handleGetBuildTagsRequest,
+            getClustersRequest: handleGetClustersRequest
         };
 
         async function handleGetSubscriptionsRequest() {
@@ -274,52 +274,49 @@ export function getDraftScenarios() {
             webview.postGetSubscriptionsResponse(scenarioData.referenceData.subscriptions.map(s => s.subscription));
         }
 
-        async function handleGetResourceGroupsRequest(subscriptionId: string) {
+        async function handleGetResourceGroupsRequest(key: SubscriptionKey) {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            const subscriptionData = getSubscriptionData(scenarioData.referenceData, subscriptionId);
+            const subscriptionData = getSubscriptionData(scenarioData.referenceData, key);
             webview.postGetResourceGroupsResponse({
-                subscriptionId,
+                ...key,
                 groups: subscriptionData.resourceGroups.map(g => g.name)
             });
         }
 
-        async function handleGetAcrNamesRequest(subscriptionId: string, resourceGroup: ResourceGroup) {
+        async function handleGetAcrNamesRequest(key: ResourceGroupKey) {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            const resourceGroupData = getResourceGroupData(scenarioData.referenceData, subscriptionId, resourceGroup);
+            const resourceGroupData = getResourceGroupData(scenarioData.referenceData, key);
             webview.postGetAcrNamesResponse({
-                subscriptionId,
-                resourceGroup,
+                ...key,
                 acrNames: resourceGroupData.acrs.map(acr => acr.name)
             });
         }
 
-        async function handleGetRepositoriesRequest(subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName) {
+        async function handleGetRepositoriesRequest(key: AcrKey) {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            const acrData = getAcrData(scenarioData.referenceData, subscriptionId, resourceGroup, acrName);
+            const acrData = getAcrData(scenarioData.referenceData, key);
             webview.postGetRepositoriesResponse({
-                subscriptionId,
-                resourceGroup,
-                acrName,
+                ...key,
                 repositoryNames: acrData.repositories.map(r => r.name)
             });
         }
 
-        async function handleGetBuildTagsRequest(subscriptionId: string, resourceGroup: ResourceGroup, acrName: string, repositoryName: string) {
+        async function handleGetBuildTagsRequest(key: RepositoryKey) {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            const repoData = getRepositoryData(scenarioData.referenceData, subscriptionId, resourceGroup, acrName, repositoryName);
+            const repoData = getRepositoryData(scenarioData.referenceData, key);
             webview.postGetBuiltTagsResponse({
-                subscriptionId,
-                resourceGroup,
-                acrName,
-                repositoryName,
+                ...key,
                 tags: repoData.builtTags
             });
         }
 
-        async function handleGetClustersRequest(subscriptionId: string, resourceGroup: ResourceGroup) {
+        async function handleGetClustersRequest(key: ResourceGroupKey) {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            const resourceGroupData = getResourceGroupData(scenarioData.referenceData, subscriptionId, resourceGroup);
-            return resourceGroupData.clusters.map(c => c.name);
+            const resourceGroupData = getResourceGroupData(scenarioData.referenceData, key);
+            webview.postGetClustersResponse({
+                ...key,
+                clusterNames: resourceGroupData.clusters.map(c => c.name)
+            });
         }
     }
 
@@ -331,36 +328,36 @@ export function getDraftScenarios() {
         stateUpdater.vscodeMessageHandler));
 }
 
-function getSubscriptionData(referenceData: ReferenceData, subscriptionId: string): SubscriptionData {
-    const subscriptionData = referenceData.subscriptions.find(s => s.subscription.id === subscriptionId);
-    if (!subscriptionData) throw new Error(`Subscription ${subscriptionId} not found in reference data`);
+function getSubscriptionData(referenceData: ReferenceData, key: SubscriptionKey): SubscriptionData {
+    const subscriptionData = referenceData.subscriptions.find(s => s.subscription.id === key.subscriptionId);
+    if (!subscriptionData) throw new Error(`Subscription ${key.subscriptionId} not found in reference data`);
     return subscriptionData;
 }
 
-function getResourceGroupData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup): ResourceGroupData {
-    const subscriptionData = getSubscriptionData(referenceData, subscriptionId);
-    const resourceGroupData = subscriptionData.resourceGroups.find(g => g.name === resourceGroup);
-    if (!resourceGroupData) throw new Error(`Resource group ${resourceGroup} not found in ${subscriptionId}`);
+function getResourceGroupData(referenceData: ReferenceData, key: ResourceGroupKey): ResourceGroupData {
+    const subscriptionData = getSubscriptionData(referenceData, key);
+    const resourceGroupData = subscriptionData.resourceGroups.find(g => g.name === key.resourceGroup);
+    if (!resourceGroupData) throw new Error(`Resource group ${key.resourceGroup} not found in ${key.subscriptionId}`);
     return resourceGroupData;
 }
 
-function getAcrData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName): AcrData {
-    const resourceGroupData = getResourceGroupData(referenceData, subscriptionId, resourceGroup);
-    const acrData = resourceGroupData.acrs.find(acr => acr.name === acrName);
-    if (!acrData) throw new Error(`ACR ${acrName} not found in resource group ${resourceGroup} in subscription ${subscriptionId}`);
+function getAcrData(referenceData: ReferenceData, key: AcrKey): AcrData {
+    const resourceGroupData = getResourceGroupData(referenceData, key);
+    const acrData = resourceGroupData.acrs.find(acr => acr.name === key.acrName);
+    if (!acrData) throw new Error(`ACR ${key.acrName} not found in resource group ${key.resourceGroup} in subscription ${key.subscriptionId}`);
     return acrData;
 }
 
-function getRepositoryData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): RepositoryData {
-    const acrData = getAcrData(referenceData, subscriptionId, resourceGroup, acrName);
-    const repoData = acrData.repositories.find(r => r.name === repositoryName);
-    if (!repoData) throw new Error(`Repository ${repositoryName} not found in ACR ${acrName} in resource group ${resourceGroup} in subscription ${subscriptionId}`);
+function getRepositoryData(referenceData: ReferenceData, key: RepositoryKey): RepositoryData {
+    const acrData = getAcrData(referenceData, key);
+    const repoData = acrData.repositories.find(r => r.name === key.repositoryName);
+    if (!repoData) throw new Error(`Repository ${key.repositoryName} not found in ACR ${key.acrName} in resource group ${key.resourceGroup} in subscription ${key.subscriptionId}`);
     return repoData;
 }
 
-function getClusterData(referenceData: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, clusterName: ClusterName): ClusterData {
-    const resourceGroupData = getResourceGroupData(referenceData, subscriptionId, resourceGroup);
-    const clusterData = resourceGroupData.clusters.find(c => c.name === clusterName);
-    if (!clusterData) throw new Error(`Cluster ${clusterName} not found in resource group ${resourceGroup} in subscription ${subscriptionId}`);
+function getClusterData(referenceData: ReferenceData, key: ClusterKey): ClusterData {
+    const resourceGroupData = getResourceGroupData(referenceData, key);
+    const clusterData = resourceGroupData.clusters.find(c => c.name === key.clusterName);
+    if (!clusterData) throw new Error(`Cluster ${key.clusterName} not found in resource group ${key.resourceGroup} in subscription ${key.subscriptionId}`);
     return clusterData;
 }

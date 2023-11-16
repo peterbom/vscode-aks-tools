@@ -16,6 +16,7 @@ export type EventDef = {
     setSelectedService: string | null;
     setSubscription: Subscription | null;
     setRepositoryDialogShown: boolean;
+    setClusterDialogShown: boolean;
     setRepository: SavedRepositoryDefinition | null;
     setCluster: SavedClusterDefinition | null;
 };
@@ -55,6 +56,7 @@ export type AzureResourcesState = {
     clusterDefinition: SavedClusterDefinition | null;
     repositoryDefinition: SavedRepositoryDefinition | null;
     isRepositoryDialogShown: boolean;
+    isClusterDialogShown: boolean;
 };
 
 export type ServicesState = SavedService;
@@ -78,7 +80,8 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
             selectedSubscription: initialState.savedAzureResources?.subscription || null,
             clusterDefinition: initialState.savedAzureResources?.clusterDefinition || null,
             repositoryDefinition: initialState.savedAzureResources?.repositoryDefinition || null,
-            isRepositoryDialogShown: false
+            isRepositoryDialogShown: false,
+            isClusterDialogShown: false
         },
         services: initialState.savedServices,
         selectedService: initialState.savedServices.length === 1 ? initialState.savedServices[0].name : null,
@@ -109,6 +112,7 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
         setSelectedService: (state, selectedService) => ({...state, selectedService}),
         setSubscription: (state, subscription) => ({...state, azureResources: {...state.azureResources, selectedSubscription: subscription, clusterDefinition: null, repositoryDefinition: null}}),
         setRepositoryDialogShown: (state, shown) => ({...state, azureResources: {...state.azureResources, isRepositoryDialogShown: shown}}),
+        setClusterDialogShown: (state, shown) => ({...state, azureResources: {...state.azureResources, isClusterDialogShown: shown}}),
         setRepository: (state, repositoryDefinition) => ({...state, azureResources: {...state.azureResources, repositoryDefinition}}),
         setCluster: (state, clusterDefinition) => ({...state, azureResources: {...state.azureResources, clusterDefinition}})
     }

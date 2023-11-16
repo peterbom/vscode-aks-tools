@@ -2,7 +2,7 @@ import styles from "./Draft.module.css";
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
 import { ImageTag, InitialState } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { getStateManagement } from "../utilities/state";
-import { RepositoryReferenceData, SubscriptionReferenceData, stateUpdater, vscode } from "./state";
+import { ClusterReferenceData, RepositoryReferenceData, SubscriptionReferenceData, stateUpdater, vscode } from "./state";
 import { FormEvent, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
@@ -10,7 +10,7 @@ import { NewServiceDialog } from "./NewServiceDialog";
 import { AzureResources } from "./AzureResources";
 import { Service } from "./Service";
 import { Lazy, isLoaded, newLoaded, newLoading } from "../utilities/lazy";
-import { Maybe, isNothing } from "../utilities/maybe";
+import { Maybe, isNothing, nothing } from "../utilities/maybe";
 import { loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions } from "./dataLoading";
 import { tryGet } from "../utilities/array";
 
@@ -22,9 +22,9 @@ export function Draft(initialState: InitialState) {
     }, []);
 
     const subscriptionsData = state.referenceData.subscriptions;
-    let lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>> = newLoading();
-    let lazyRepositoryData: Lazy<Maybe<RepositoryReferenceData>> = newLoading();
-    let lazyBuiltTags: Lazy<ImageTag[]> = newLoading();
+    let lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>> = state.azureResources.selectedSubscription ? newLoading() : newLoaded(nothing());
+    let lazyRepositoryData: Lazy<Maybe<RepositoryReferenceData>> = state.azureResources.repositoryDefinition ? newLoading() : newLoaded(nothing());
+    let lazyClusterData: Lazy<Maybe<ClusterReferenceData>> = state.azureResources.clusterDefinition ? newLoading() : newLoaded(nothing());
 
     (function prepareData() {
         if (!isLoaded(subscriptionsData)) {
@@ -84,7 +84,7 @@ export function Draft(initialState: InitialState) {
                     return;
                 }
     
-                lazyBuiltTags = repositoryData.value.builtTags;
+                const lazyBuiltTags = repositoryData.value.builtTags;
                 if (!isLoaded(lazyBuiltTags)) {
                     loadBuiltTags(repositoryData.value, eventHandlers);
                     return;
@@ -113,6 +113,7 @@ export function Draft(initialState: InitialState) {
                 }
     
                 const clusterData = tryGet(lazyClustersData.value, cluster => cluster.key.clusterName === name);
+                lazyClusterData = newLoaded(clusterData);
                 if (isNothing(clusterData)) {
                     // Not a known cluster, so the cluster configuration is invalid. Reset it.
                     eventHandlers.onSetCluster(null);
@@ -146,7 +147,7 @@ export function Draft(initialState: InitialState) {
                 subscriptionsData={subscriptionsData}
                 subscriptionData={lazySubscriptionData}
                 repositoryData={lazyRepositoryData}
-                builtTags={lazyBuiltTags}
+                clusterData={lazyClusterData}
                 eventHandlers={eventHandlers}
             />
         )}

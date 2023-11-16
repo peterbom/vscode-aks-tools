@@ -1,19 +1,20 @@
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
-import { AzureResourcesState, EventDef, RepositoryReferenceData, SubscriptionReferenceData } from "./state";
+import { AzureResourcesState, ClusterReferenceData, EventDef, RepositoryReferenceData, SubscriptionReferenceData } from "./state";
 import { VSCodeButton, VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
-import { ImageTag, Subscription } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { Subscription } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { RepositoryDialog } from "./RepositoryDialog";
 import { ResourceSelector } from "../components/ResourceSelector";
 import { Lazy, isLoaded, isLoading, map as lazyMap } from "../utilities/lazy";
 import { Maybe, hasValue } from "../utilities/maybe";
+import { ClusterDialog } from "./ClusterDialog";
 
 export interface AzureResourcesProps {
     resourcesState: AzureResourcesState;
     subscriptionsData: Lazy<SubscriptionReferenceData[]>;
     subscriptionData: Lazy<Maybe<SubscriptionReferenceData>>;
     repositoryData: Lazy<Maybe<RepositoryReferenceData>>;
-    builtTags: Lazy<ImageTag[]>;
+    clusterData: Lazy<Maybe<ClusterReferenceData>>;
     eventHandlers: EventHandlers<EventDef>;
 }
 
@@ -37,37 +38,60 @@ export function AzureResources(props: AzureResourcesProps) {
             {isLoaded(props.repositoryData) &&
             <>
                 {hasValue(props.repositoryData.value) &&
-                <>
-                    <VSCodeTextField
-                        id="repository"
-                        className={styles.midControl}
-                        value={getFullRepositoryName(props.repositoryData.value.value)}
-                        readOnly={true}
-                    />
-                </>
+                <VSCodeTextField
+                    id="repository"
+                    className={styles.midControl}
+                    value={getFullRepositoryName(props.repositoryData.value.value)}
+                    readOnly={true}
+                />
                 ||
-                <>
-                    <span className={styles.midControl}>Not configured</span>
-                </>}
+                <span className={styles.midControl}>Not configured</span>
+                }
 
                 <VSCodeButton appearance="secondary" onClick={() => props.eventHandlers.onSetRepositoryDialogShown(true)} className={styles.sideControl}>
                     {hasValue(props.repositoryData.value) ? "Change" : "Configure"}
                 </VSCodeButton>
             </>}
 
-            <label htmlFor="built-tags" className={styles.label}>Subscription</label>
-            {isLoading(props.builtTags) && <VSCodeProgressRing style={{height: "1rem"}} className={styles.midControl} />}
-            {isLoaded(props.builtTags) && <span className={styles.longControl}>{props.builtTags.value.join(", ")}</span>}
+            <label htmlFor="cluster" className={styles.label}>Cluster</label>
+            {isLoading(props.clusterData) && <VSCodeProgressRing style={{height: "1rem"}} className={styles.midControl} />}
+            {isLoaded(props.clusterData) &&
+            <>
+                {hasValue(props.clusterData.value) &&
+                <VSCodeTextField
+                    id="cluster"
+                    className={styles.midControl}
+                    value={props.clusterData.value.value.key.clusterName}
+                    readOnly={true}
+                />
+
+                ||
+                <span className={styles.midControl}>Not configured</span>
+                }
+
+                <VSCodeButton appearance="secondary" onClick={() => props.eventHandlers.onSetClusterDialogShown(true)} className={styles.sideControl}>
+                    {hasValue(props.clusterData.value) ? "Change" : "Configure"}
+                </VSCodeButton>
+            </>}
         </div>
 
         {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) && (
+        <>
             <RepositoryDialog
                 isShown={props.resourcesState.isRepositoryDialogShown}
-                key={props.resourcesState.isRepositoryDialogShown ? 1 : 0 /* Reset state when shown/hidden */}
+                key={`repo-${props.resourcesState.isRepositoryDialogShown}` /* Reset state when shown/hidden */}
                 repositoryDefinition={props.resourcesState.repositoryDefinition}
                 subscriptionData={props.subscriptionData.value.value}
                 eventHandlers={props.eventHandlers}
             />
+            <ClusterDialog
+                isShown={props.resourcesState.isClusterDialogShown}
+                key={`cluster-${props.resourcesState.isClusterDialogShown}` /* Reset state when shown/hidden */}
+                clusterDefinition={props.resourcesState.clusterDefinition}
+                subscriptionData={props.subscriptionData.value.value}
+                eventHandlers={props.eventHandlers}
+            />
+        </>
         )}
     </>
     );
