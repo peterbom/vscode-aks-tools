@@ -1,27 +1,23 @@
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
-import { AzureResourcesState, EventDef, ReferenceData } from "./state";
+import { AzureResourcesState, EventDef, RepositoryReferenceData, SubscriptionReferenceData } from "./state";
 import { VSCodeButton, VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
-import { AcrName, RepositoryKey, RepositoryName, SavedRepositoryDefinition, Subscription } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { ImageTag, Subscription } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { RepositoryDialog } from "./RepositoryDialog";
 import { ResourceSelector } from "../components/ResourceSelector";
-import { isLoaded, isLoading, map as lazyMap, newLoaded } from "../utilities/lazy";
-import { hasValue, nothing } from "../utilities/maybe";
+import { Lazy, isLoaded, isLoading, map as lazyMap } from "../utilities/lazy";
+import { Maybe, hasValue } from "../utilities/maybe";
 
 export interface AzureResourcesProps {
-    referenceData: ReferenceData;
     resourcesState: AzureResourcesState;
+    subscriptionsData: Lazy<SubscriptionReferenceData[]>;
+    subscriptionData: Lazy<Maybe<SubscriptionReferenceData>>;
+    repositoryData: Lazy<Maybe<RepositoryReferenceData>>;
+    builtTags: Lazy<ImageTag[]>;
     eventHandlers: EventHandlers<EventDef>;
 }
 
 export function AzureResources(props: AzureResourcesProps) {
-    const repoKey = getRepositoryKey(props);
-    const lazyRepoData = repoKey ? ReferenceData.getRepository(props.referenceData, repoKey.subscriptionId, repoKey.resourceGroup, repoKey.acrName, repoKey.repositoryName) : newLoaded(nothing());
-    const isLoadingRepoData = isLoading(lazyRepoData);
-    const isLoadedRepoData = isLoaded(lazyRepoData);
-    const loadedRepoData = isLoadedRepoData && hasValue(lazyRepoData.value) ? lazyRepoData.value.value : null;
-    const fullRepoName = repoKey ? getFullRepositoryName(repoKey.acrName, repoKey.repositoryName) : "";
-
     return (
     <>
         <div className={styles.inputContainer}>
@@ -29,7 +25,7 @@ export function AzureResources(props: AzureResourcesProps) {
             <ResourceSelector<Subscription>
                 id="subscription"
                 className={styles.midControl}
-                resources={lazyMap(props.referenceData.subscriptions, subs => subs.map(s => s.subscription))}
+                resources={lazyMap(props.subscriptionsData, subs => subs.map(s => s.subscription))}
                 selectedItem={props.resourcesState.selectedSubscription}
                 valueGetter={s => s.id}
                 labelGetter={s => s.name}
@@ -37,33 +33,39 @@ export function AzureResources(props: AzureResourcesProps) {
             />
 
             <label htmlFor="repository" className={styles.label}>Repository</label>
-            {isLoadingRepoData && <VSCodeProgressRing style={{height: "1rem"}} className={styles.midControl} />}
-            {isLoadedRepoData &&
+            {isLoading(props.repositoryData) && <VSCodeProgressRing style={{height: "1rem"}} className={styles.midControl} />}
+            {isLoaded(props.repositoryData) &&
             <>
-                {loadedRepoData &&
+                {hasValue(props.repositoryData.value) &&
                 <>
                     <VSCodeTextField
                         id="repository"
                         className={styles.midControl}
-                        value={fullRepoName}
+                        value={getFullRepositoryName(props.repositoryData.value.value)}
                         readOnly={true}
                     />
-                </>}
-                {loadedRepoData === null &&
+                </>
+                ||
                 <>
                     <span className={styles.midControl}>Not configured</span>
                 </>}
+
                 <VSCodeButton appearance="secondary" onClick={() => props.eventHandlers.onSetRepositoryDialogShown(true)} className={styles.sideControl}>
-                    {loadedRepoData ? "Change" : "Configure"}
+                    {hasValue(props.repositoryData.value) ? "Change" : "Configure"}
                 </VSCodeButton>
             </>}
+
+            <label htmlFor="built-tags" className={styles.label}>Subscription</label>
+            {isLoading(props.builtTags) && <VSCodeProgressRing style={{height: "1rem"}} className={styles.midControl} />}
+            {isLoaded(props.builtTags) && <span className={styles.longControl}>{props.builtTags.value.join(", ")}</span>}
         </div>
 
-        {props.resourcesState.selectedSubscription && (
+        {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) && (
             <RepositoryDialog
                 isShown={props.resourcesState.isRepositoryDialogShown}
-                subscription={props.resourcesState.selectedSubscription}
-                referenceData={props.referenceData}
+                key={props.resourcesState.isRepositoryDialogShown ? 1 : 0 /* Reset state when shown/hidden */}
+                repositoryDefinition={props.resourcesState.repositoryDefinition}
+                subscriptionData={props.subscriptionData.value.value}
                 eventHandlers={props.eventHandlers}
             />
         )}
@@ -71,16 +73,6 @@ export function AzureResources(props: AzureResourcesProps) {
     );
 }
 
-function getFullRepositoryName(acrName: AcrName, repositoryName: RepositoryName): string {
-    return `${acrName}.azurecr.io/${repositoryName}`;
-}
-
-function getRepositoryKey(props: AzureResourcesProps): RepositoryKey | null {
-    if (props.resourcesState.selectedSubscription === null || props.resourcesState.repositoryDefinition === null) {
-        return null;
-    }
-
-    const subscriptionId = props.resourcesState.selectedSubscription.id;
-    const {resourceGroup, acrName, repositoryName} = props.resourcesState.repositoryDefinition;
-    return {subscriptionId, resourceGroup, acrName, repositoryName};
+function getFullRepositoryName(repoData: RepositoryReferenceData): string {
+    return `${repoData.key.acrName}.azurecr.io/${repoData.key.repositoryName}`;
 }

@@ -34,6 +34,15 @@ export function tryGet<T>(items: T[], predicate: (item: T) => boolean): Maybe<T>
     return item ? just(item) : nothing();
 }
 
+export function getOrThrow<T>(items: T[], predicate: (item: T) => boolean, messageIfMissing: string): T {
+    const item = items.find(predicate);
+    if (!item) {
+        throw new Error(messageIfMissing);
+    }
+
+    return item;
+}
+
 export function distinct(items: string[]) {
     return [...new Set(items)];
 }

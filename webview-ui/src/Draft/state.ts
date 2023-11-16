@@ -1,7 +1,6 @@
-import { AcrKey, AcrName, ClusterName, ImageTag, RepositoryKey, RepositoryName, ResourceGroup, ResourceGroupKey, SavedClusterDefinition, SavedRepositoryDefinition, SavedService, Subscription, SubscriptionKey } from "../../../src/webview-contract/webviewDefinitions/draft";
-import { replaceItem, tryGet, updateValues } from "../utilities/array";
-import { bind as lazyBind, Lazy, map as lazyMap, newLoaded, newLoading, newNotLoaded, orDefault } from "../utilities/lazy";
-import { Maybe, hasValue, nothing } from "../utilities/maybe";
+import { AcrKey, AcrName, ClusterKey, ClusterName, ImageTag, RepositoryKey, RepositoryName, ResourceGroup, ResourceGroupKey, SavedClusterDefinition, SavedRepositoryDefinition, SavedService, Subscription, SubscriptionKey } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { replaceItem, updateValues } from "../utilities/array";
+import { Lazy, map as lazyMap, newLoaded, newLoading, newNotLoaded, orDefault } from "../utilities/lazy";
 import { WebviewStateUpdater } from "../utilities/state";
 import { getWebviewMessageContext } from "../utilities/vscode";
 
@@ -31,23 +30,23 @@ export type SubscriptionReferenceData = {
 };
 
 export type ResourceGroupReferenceData = {
-    name: ResourceGroup;
+    key: ResourceGroupKey;
     acrs: Lazy<AcrReferenceData[]>;
     clusters: Lazy<ClusterReferenceData[]>;
 };
 
 export type AcrReferenceData = {
-    name: AcrName;
+    key: AcrKey;
     repositories: Lazy<RepositoryReferenceData[]>;
 };
 
 export type RepositoryReferenceData = {
-    name: RepositoryName;
+    key: RepositoryKey;
     builtTags: Lazy<ImageTag[]>;
 };
 
 export type ClusterReferenceData = {
-    name: ClusterName;
+    key: ClusterKey;
     connectedAcrs: Lazy<AcrKey[]>;
 }
 
@@ -114,75 +113,6 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
         setCluster: (state, clusterDefinition) => ({...state, azureResources: {...state.azureResources, clusterDefinition}})
     }
 };
-
-export namespace ReferenceData {
-    export function getSubscription(data: ReferenceData, subscriptionId: string): Lazy<Maybe<SubscriptionReferenceData>> {
-        return lazyMap(data.subscriptions, subs => tryGet(subs, sub => sub.subscription.id === subscriptionId));
-    }
-
-    export function getResourceGroup(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup): Lazy<Maybe<ResourceGroupReferenceData>> {
-        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getResourceGroup(data, resourceGroup));
-    }
-
-    export function getAcr(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName): Lazy<Maybe<AcrReferenceData>> {
-        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getAcr(data, resourceGroup, acrName));
-    }
-
-    export function getRepository(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
-        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getRepository(data, resourceGroup, acrName, repositoryName));
-    }
-
-    export function getCluster(data: ReferenceData, subscriptionId: string, resourceGroup: ResourceGroup, clusterName: ClusterName): Lazy<Maybe<ClusterReferenceData>> {
-        return lazyMaybeBind(getSubscription(data, subscriptionId), data => SubscriptionData.getCluster(data, resourceGroup, clusterName));
-    }
-}
-
-export namespace SubscriptionData {
-    export function getResourceGroup(data: SubscriptionReferenceData, resourceGroup: ResourceGroup): Lazy<Maybe<ResourceGroupReferenceData>> {
-        return lazyMap(data.resourceGroups, groups => tryGet(groups, group => group.name === resourceGroup));
-    }
-
-    export function getAcr(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName): Lazy<Maybe<AcrReferenceData>> {
-        return lazyMaybeBind(getResourceGroup(data, resourceGroup), data => ResourceGroupData.getAcr(data, acrName));
-    }
-
-    export function getRepository(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, acrName: AcrName, repositoryName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
-        return lazyMaybeBind(getResourceGroup(data, resourceGroup), data => ResourceGroupData.getRepository(data, acrName, repositoryName));
-    }
-
-    export function getCluster(data: SubscriptionReferenceData, resourceGroup: ResourceGroup, clusterName: ClusterName): Lazy<Maybe<ClusterReferenceData>> {
-        return lazyMaybeBind(getResourceGroup(data, resourceGroup), data => ResourceGroupData.getCluster(data, clusterName));
-    }
-}
-
-export namespace ResourceGroupData {
-    export function getAcr(data: ResourceGroupReferenceData, acrName: AcrName): Lazy<Maybe<AcrReferenceData>> {
-        return lazyMap(data.acrs, acrs => tryGet(acrs, acr => acr.name === acrName));
-    }
-
-    export function getCluster(data: ResourceGroupReferenceData, clusterName: ClusterName): Lazy<Maybe<ClusterReferenceData>> {
-        return lazyMap(data.clusters, clusters => tryGet(clusters, c => c.name === clusterName));
-    }
-
-    export function getRepository(data: ResourceGroupReferenceData, acrName: AcrName, repositoryName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
-        return lazyMaybeBind(getAcr(data, acrName), data => AcrData.getRepository(data, repositoryName));
-    }
-}
-
-function lazyMaybeBind<T1, T2>(value: Lazy<Maybe<T1>>, fn: (value: T1) => Lazy<Maybe<T2>>): Lazy<Maybe<T2>> {
-    return lazyBind(value, (maybe) => {
-        if (!hasValue(maybe)) {
-            return newLoaded(nothing());
-        }
-        return fn(maybe.value);
-    });
-}
-
-export namespace AcrData {
-    export function getRepository(data: AcrReferenceData, repoName: RepositoryName): Lazy<Maybe<RepositoryReferenceData>> {
-        return lazyMap(data.repositories, repos => tryGet(repos, repo => repo.name === repoName));
-    }
-}
 
 namespace ReferenceDataUpdate {
     export function setSubscriptionsLoading(data: ReferenceData): ReferenceData {
@@ -261,8 +191,9 @@ namespace SubscriptionDataUpdate {
 
     export function updateResourceGroups(data: SubscriptionReferenceData, resourceGroups: ResourceGroup[]): SubscriptionReferenceData {
         const existingGroups = orDefault(data.resourceGroups, []);
-        const updatedGroups = updateValues(existingGroups, resourceGroups, group => group.name, group => ({
-            name: group,
+        const newKeys: ResourceGroupKey[] = resourceGroups.map(resourceGroup => ({subscriptionId: data.subscription.id, resourceGroup}));
+        const updatedGroups = updateValues(existingGroups, newKeys, group => group.key, key => ({
+            key,
             acrs: newNotLoaded(),
             clusters: newNotLoaded()
         }));
@@ -310,7 +241,7 @@ namespace SubscriptionDataUpdate {
             ...data,
             resourceGroups: lazyMap(data.resourceGroups, groups => replaceItem(
                 groups,
-                group => group.name === resourceGroup,
+                group => group.key.resourceGroup === resourceGroup,
                 updater
             ))
         };
@@ -328,8 +259,9 @@ namespace ResourceGroupDataUpdate {
 
     export function updateAcrNames(data: ResourceGroupReferenceData, acrNames: AcrName[]): ResourceGroupReferenceData {
         const existingAcrs = orDefault(data.acrs, []);
-        const updatedAcrs = updateValues(existingAcrs, acrNames, acr => acr.name, name => ({
-            name,
+        const newKeys: AcrKey[] = acrNames.map(acrName => ({...data.key, acrName}));
+        const updatedAcrs = updateValues(existingAcrs, newKeys, acr => acr.key, key => ({
+            key,
             repositories: newNotLoaded()
         }));
 
@@ -341,8 +273,9 @@ namespace ResourceGroupDataUpdate {
 
     export function updateClusterNames(data: ResourceGroupReferenceData, clusterNames: ClusterName[]): ResourceGroupReferenceData {
         const existingClusters = orDefault(data.clusters, []);
-        const updatedClusters = updateValues(existingClusters, clusterNames, cluster => cluster.name, name => ({
-            name,
+        const newKeys: ClusterKey[] = clusterNames.map(clusterName => ({...data.key, clusterName}));
+        const updatedClusters = updateValues(existingClusters, newKeys, cluster => cluster.key, key => ({
+            key,
             connectedAcrs: newNotLoaded()
         }));
 
@@ -373,7 +306,7 @@ namespace ResourceGroupDataUpdate {
             ...data,
             acrs: lazyMap(data.acrs, acrs => replaceItem(
                 acrs,
-                acr => acr.name === acrName,
+                acr => acr.key.acrName === acrName,
                 updater
             ))
         };
@@ -387,8 +320,9 @@ namespace AcrDataUpdate {
 
     export function updateRepositoryNames(data: AcrReferenceData, repositoryNames: RepositoryName[]): AcrReferenceData {
         const existingRepos = orDefault(data.repositories, []);
-        const updatedRepos = updateValues(existingRepos, repositoryNames, repo => repo.name, name => ({
-            name,
+        const newKeys: RepositoryKey[] = repositoryNames.map(repositoryName => ({...data.key, repositoryName}));
+        const updatedRepos = updateValues(existingRepos, newKeys, repo => repo.key, key => ({
+            key,
             builtTags: newNotLoaded()
         }));
 
@@ -411,7 +345,7 @@ namespace AcrDataUpdate {
             ...data,
             repositories: lazyMap(data.repositories, repositories => replaceItem(
                 repositories,
-                repository => repository.name === repositoryName,
+                repository => repository.key.repositoryName === repositoryName,
                 updater
             ))
         };

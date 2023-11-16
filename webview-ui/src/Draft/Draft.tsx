@@ -1,16 +1,18 @@
 import styles from "./Draft.module.css";
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
-import { InitialState } from "../../../src/webview-contract/webviewDefinitions/draft";
+import { ImageTag, InitialState } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { getStateManagement } from "../utilities/state";
-import { AcrData, ReferenceData, ResourceGroupData, SubscriptionData, stateUpdater, vscode } from "./state";
+import { RepositoryReferenceData, SubscriptionReferenceData, stateUpdater, vscode } from "./state";
 import { FormEvent, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 import { NewServiceDialog } from "./NewServiceDialog";
 import { AzureResources } from "./AzureResources";
 import { Service } from "./Service";
-import { isLoaded, isLoading, isNotLoaded } from "../utilities/lazy";
-import { hasValue } from "../utilities/maybe";
+import { Lazy, isLoaded, newLoaded, newLoading } from "../utilities/lazy";
+import { Maybe, isNothing } from "../utilities/maybe";
+import { loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions } from "./dataLoading";
+import { tryGet } from "../utilities/array";
 
 export function Draft(initialState: InitialState) {
     const {state, eventHandlers, vsCodeMessageHandlers} = getStateManagement(stateUpdater, initialState);
@@ -19,134 +21,107 @@ export function Draft(initialState: InitialState) {
         vscode.subscribeToMessages(vsCodeMessageHandlers);
     }, []);
 
-    useEffect(() => {
-        if (isNotLoaded(state.referenceData.subscriptions)) {
-            vscode.postGetSubscriptionsRequest();
-            eventHandlers.onSetSubscriptionsLoading();
-        }
+    const subscriptionsData = state.referenceData.subscriptions;
+    let lazySubscriptionData: Lazy<Maybe<SubscriptionReferenceData>> = newLoading();
+    let lazyRepositoryData: Lazy<Maybe<RepositoryReferenceData>> = newLoading();
+    let lazyBuiltTags: Lazy<ImageTag[]> = newLoading();
 
+    (function prepareData() {
+        if (!isLoaded(subscriptionsData)) {
+            loadSubscriptions(state.referenceData, eventHandlers);
+            return;
+        }
+    
         if (state.azureResources.selectedSubscription !== null) {
             const subscriptionId = state.azureResources.selectedSubscription.id;
-            const lazySubscriptionData = ReferenceData.getSubscription(state.referenceData, subscriptionId);
-            if (!isLoaded(lazySubscriptionData)) {
-                return;
-            }
-
-            const maybeSubscriptionData = lazySubscriptionData.value;
-            if (!hasValue(maybeSubscriptionData)) {
-                // Not a known subscription.
+            const subscriptionData = tryGet(subscriptionsData.value, sub => sub.subscription.id === subscriptionId);
+            lazySubscriptionData = newLoaded(subscriptionData);
+            if (isNothing(subscriptionData)) {
+                // Our selected subscription is not known. Reset it.
                 eventHandlers.onSetSubscription(null);
                 return;
             }
-
-            const subscriptionData = maybeSubscriptionData.value;
+    
             if (state.azureResources.repositoryDefinition !== null) {
                 const {resourceGroup, acrName, repositoryName} = state.azureResources.repositoryDefinition;
-                const lazyResourceGroupData = SubscriptionData.getResourceGroup(subscriptionData, resourceGroup);
-                if (isNotLoaded(lazyResourceGroupData)) {
-                    vscode.postGetResourceGroupsRequest({subscriptionId});
-                    eventHandlers.onSetResourceGroupsLoading({subscriptionId});
+                const lazyResourceGroupsData = subscriptionData.value.resourceGroups;
+                if (!isLoaded(lazyResourceGroupsData)) {
+                    loadResourceGroups(subscriptionData.value, eventHandlers)
                     return;
                 }
-
-                if (isLoading(lazyResourceGroupData)) {
-                    return;
-                }
-
-                const maybeResourceGroupData = lazyResourceGroupData.value;
-                if (!hasValue(maybeResourceGroupData)) {
+    
+                const resourceGroupData = tryGet(lazyResourceGroupsData.value, group => group.key.resourceGroup === resourceGroup);
+                if (isNothing(resourceGroupData)) {
+                    // Not a known resource group, so the repository configuration is invalid. Reset it.
                     eventHandlers.onSetRepository(null);
                     return;
                 }
-
-                const resourceGroupData = maybeResourceGroupData.value;
-                const lazyAcrData = ResourceGroupData.getAcr(resourceGroupData, acrName);
-                if (isNotLoaded(lazyAcrData)) {
-                    vscode.postGetAcrNamesRequest({subscriptionId, resourceGroup});
-                    eventHandlers.onSetAcrsLoading({subscriptionId, resourceGroup});
+    
+                const lazyAcrsData = resourceGroupData.value.acrs;
+                if (!isLoaded(lazyAcrsData)) {
+                    loadAcrs(resourceGroupData.value, eventHandlers)
                     return;
                 }
-
-                if (isLoading(lazyAcrData)) {
-                    return;
-                }
-
-                const maybeAcrData = lazyAcrData.value;
-                if (!hasValue(maybeAcrData)) {
+    
+                const acrData = tryGet(lazyAcrsData.value, acr => acr.key.acrName === acrName);
+                if (isNothing(acrData)) {
+                    // Not a known ACR, so the repository configuration is invalid. Reset it.
                     eventHandlers.onSetRepository(null);
                     return;
                 }
-
-                const acrData = maybeAcrData.value;
-                const lazyRepositoryData = AcrData.getRepository(acrData, repositoryName);
-                if (isNotLoaded(lazyRepositoryData)) {
-                    vscode.postGetRepositoriesRequest({subscriptionId, resourceGroup, acrName});
-                    eventHandlers.onSetRepositoriesLoading({subscriptionId, resourceGroup, acrName});
+    
+                const lazyRepositoriesData = acrData.value.repositories;
+                if (!isLoaded(lazyRepositoriesData)) {
+                    loadRepositories(acrData.value, eventHandlers);
                     return;
                 }
-
-                if (isLoading(lazyRepositoryData)) {
-                    return;
-                }
-
-                const maybeRepositoryData = lazyRepositoryData.value;
-                if (!hasValue(maybeRepositoryData)) {
+    
+                const repositoryData = tryGet(lazyRepositoriesData.value, repo => repo.key.repositoryName === repositoryName);
+                lazyRepositoryData = newLoaded(repositoryData);
+                if (isNothing(repositoryData)) {
+                    // Not a known repository, so the repository configuration is invalid. Reset it.
                     eventHandlers.onSetRepository(null);
                     return;
                 }
-
-                const repositoryData = maybeRepositoryData.value;
-                if (isNotLoaded(repositoryData.builtTags)) {
-                    vscode.postGetBuiltTagsRequest({subscriptionId, resourceGroup, acrName, repositoryName});
-                    eventHandlers.onSetBuiltTagsLoading({subscriptionId, resourceGroup, acrName, repositoryName});
+    
+                lazyBuiltTags = repositoryData.value.builtTags;
+                if (!isLoaded(lazyBuiltTags)) {
+                    loadBuiltTags(repositoryData.value, eventHandlers);
                     return;
                 }
             }
-
+    
             if (state.azureResources.clusterDefinition !== null) {
                 const {resourceGroup, name} = state.azureResources.clusterDefinition;
-                const lazyResourceGroupData = SubscriptionData.getResourceGroup(subscriptionData, resourceGroup);
-                if (isNotLoaded(lazyResourceGroupData)) {
-                    vscode.postGetResourceGroupsRequest({subscriptionId});
-                    eventHandlers.onSetResourceGroupsLoading({subscriptionId});
+                const lazyResourceGroupsData = subscriptionData.value.resourceGroups;
+                if (!isLoaded(lazyResourceGroupsData)) {
+                    loadResourceGroups(subscriptionData.value, eventHandlers);
                     return;
                 }
-
-                if (isLoading(lazyResourceGroupData)) {
-                    return;
-                }
-
-                const maybeResourceGroupData = lazyResourceGroupData.value;
-                if (!hasValue(maybeResourceGroupData)) {
-                    eventHandlers.onSetRepository(null);
-                    return;
-                }
-
-                const resourceGroupData = maybeResourceGroupData.value;
-                const lazyClusterData = ResourceGroupData.getCluster(resourceGroupData, name);
-                if (isNotLoaded(lazyClusterData)) {
-                    vscode.postGetClustersRequest({subscriptionId, resourceGroup});
-                    eventHandlers.onSetClustersLoading({subscriptionId, resourceGroup});
-                    return;
-                }
-
-                if (isLoading(lazyClusterData)) {
-                    return;
-                }
-
-                const maybeClusterData = lazyClusterData.value;
-                if (!hasValue(maybeClusterData)) {
+    
+                const resourceGroupData = tryGet(lazyResourceGroupsData.value, group => group.key.resourceGroup === resourceGroup);
+                if (isNothing(resourceGroupData)) {
+                    // Not a known resource group, so the cluster configuration is invalid. Reset it.
                     eventHandlers.onSetCluster(null);
                     return;
                 }
-
-                const clusterData = maybeClusterData.value;
-                if (isNotLoaded(clusterData.connectedAcrs)) {
-                    // TODO: postGetConnectedAcrsRequest
+    
+                const lazyClustersData = resourceGroupData.value.clusters;
+                if (!isLoaded(lazyClustersData)) {
+                    loadClusters(resourceGroupData.value, eventHandlers);
+                    return;
                 }
+    
+                const clusterData = tryGet(lazyClustersData.value, cluster => cluster.key.clusterName === name);
+                if (isNothing(clusterData)) {
+                    // Not a known cluster, so the cluster configuration is invalid. Reset it.
+                    eventHandlers.onSetCluster(null);
+                }
+    
+                // TODO: loadConnectedAcrs (and postGetConnectedAcrsRequest)
             }
         }
-    });
+    })();
 
     function handleSelectedServiceChange(e: Event | FormEvent<HTMLElement>) {
         const elem = e.target as HTMLInputElement;
@@ -167,8 +142,11 @@ export function Draft(initialState: InitialState) {
         */}
         {state.services.length > 0 && (
             <AzureResources
-                referenceData={state.referenceData}
                 resourcesState={state.azureResources}
+                subscriptionsData={subscriptionsData}
+                subscriptionData={lazySubscriptionData}
+                repositoryData={lazyRepositoryData}
+                builtTags={lazyBuiltTags}
                 eventHandlers={eventHandlers}
             />
         )}
