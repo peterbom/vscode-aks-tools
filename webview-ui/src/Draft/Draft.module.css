@@ -1,8 +1,13 @@
 .inputContainer {
     display: grid;
     grid-template-columns: 8rem 20rem 8rem;
+    grid-auto-rows: min-content;
     grid-gap: 1rem;
     padding-bottom: 0.5rem;
+}
+
+.inputContainer > * {
+    height: fit-content;
 }
 
 .inputContainer .label {
@@ -35,4 +40,21 @@
     display: flex;
     flex-direction: row;
     column-gap: 0.5rem;
+}
+
+.propertyList {
+    width: 100%;
+    margin: 0;
+}
+
+.propertyList dt {
+    float: left;
+    clear: left;
+    padding: 2px 4px;
+    font-weight: bold;
+    width: 10rem;
+}
+
+.propertyList dd {
+    padding: 2px 0;
 }

@@ -9,9 +9,9 @@ import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 import { NewServiceDialog } from "./NewServiceDialog";
 import { AzureResources } from "./AzureResources";
 import { Service } from "./Service";
-import { Lazy, isLoaded, newLoaded, newLoading, newNotLoaded } from "../utilities/lazy";
-import { Maybe, asNullable, hasValue, isNothing, nothing } from "../utilities/maybe";
-import { EventHandlerFunc, loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions, noop } from "./dataLoading";
+import { Lazy, isLoaded, newLoaded, newLoading } from "../utilities/lazy";
+import { Maybe, asNullable, isNothing, nothing } from "../utilities/maybe";
+import { EventHandlerFunc, loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions } from "./dataLoading";
 import { tryGet } from "../utilities/array";
 
 export function Draft(initialState: InitialState) {
