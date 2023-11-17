@@ -4,7 +4,7 @@ import { VSCodeButton, VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
 import { EventDef, SubscriptionReferenceData } from "./state";
-import { Lazy, isLoaded, map as lazyMap, newLoaded, newLoading, newNotLoaded } from "../utilities/lazy";
+import { Lazy, isLoaded, map as lazyMap, newLoading } from "../utilities/lazy";
 import { ResourceSelector } from "../components/ResourceSelector";
 import { AcrName, ClusterName, ResourceGroup, SavedClusterDefinition } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { EventHandlerFunc, loadClusters, loadResourceGroups } from "./dataLoading";

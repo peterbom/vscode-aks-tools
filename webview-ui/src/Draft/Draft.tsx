@@ -1,9 +1,9 @@
 import styles from "./Draft.module.css";
-import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
+import { VSCodeButton, VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
 import { InitialState, SavedClusterDefinition, SavedRepositoryDefinition, Subscription } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { getStateManagement } from "../utilities/state";
 import { ClusterReferenceData, ReferenceData, RepositoryReferenceData, SubscriptionReferenceData, stateUpdater, vscode } from "./state";
-import { FormEvent, useEffect } from "react";
+import { useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 import { NewServiceDialog } from "./NewServiceDialog";
@@ -13,6 +13,7 @@ import { Lazy, isLoaded, newLoaded, newLoading } from "../utilities/lazy";
 import { Maybe, asNullable, isNothing, nothing } from "../utilities/maybe";
 import { EventHandlerFunc, loadAcrs, loadBuiltTags, loadClusters, loadRepositories, loadResourceGroups, loadSubscriptions } from "./dataLoading";
 import { tryGet } from "../utilities/array";
+import { ResourceSelector } from "../components/ResourceSelector";
 
 export function Draft(initialState: InitialState) {
     const {state, eventHandlers, vsCodeMessageHandlers} = getStateManagement(stateUpdater, initialState);
@@ -29,12 +30,6 @@ export function Draft(initialState: InitialState) {
     useEffect(() => {
         updates.map(fn => fn(eventHandlers));
     });
-
-    function handleSelectedServiceChange(e: Event | FormEvent<HTMLElement>) {
-        const elem = e.target as HTMLInputElement;
-        const serviceName = elem.value ? elem.value : null;
-        eventHandlers.onSetSelectedService(serviceName);
-    }
 
     const selectedServiceState = state.selectedService ? state.services.find(s => s.name === state.selectedService) : null;
 
@@ -69,18 +64,22 @@ export function Draft(initialState: InitialState) {
                     If {state.workspaceName} contains code for one or more services for deployment to a Kubernetes cluster,
                     click below to allow Draft to configure them.
                 </p>
-                <VSCodeButton onClick={() => eventHandlers.onSetNewServiceDialogShown(true)}>Create Service</VSCodeButton>
+                <VSCodeButton appearance="primary" onClick={() => eventHandlers.onSetNewServiceDialogShown(true)}>Create Service</VSCodeButton>
             </>
             )}
             {state.services.length > 0 && (
             <>
                 <label htmlFor="service-dropdown" className={styles.label}>Service</label>
-                <VSCodeDropdown value={state.selectedService || undefined} id="service-dropdown" onChange={handleSelectedServiceChange}>
-                    {state.services.length > 1 && <VSCodeOption value="">Select</VSCodeOption>}
-                    {state.services.map(s => (
-                        <VSCodeOption key={s.name} value={s.name}>{s.name}</VSCodeOption>
-                    ))}
-                </VSCodeDropdown>
+                <ResourceSelector<string>
+                    id="service-dropdown"
+                    className={styles.midControl}
+                    resources={state.services.map(s => s.name)}
+                    selectedItem={state.selectedService}
+                    valueGetter={s => s}
+                    labelGetter={s => s}
+                    onSelect={s => eventHandlers.onSetSelectedService(s)}
+                />
+                <VSCodeButton appearance="secondary" onClick={() => eventHandlers.onSetNewServiceDialogShown(true)}>Create Service</VSCodeButton>
             </>
             )}
         </div>

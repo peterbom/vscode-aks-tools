@@ -94,6 +94,7 @@ export function AzureResources(props: AzureResourcesProps) {
 
         {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) && (
         <>
+            {isLoaded(props.repositoryData) &&
             <RepositoryDialog
                 isShown={props.resourcesState.isRepositoryDialogShown}
                 key={`repo-${props.resourcesState.isRepositoryDialogShown}` /* Reset state when shown/hidden */}
@@ -101,6 +102,8 @@ export function AzureResources(props: AzureResourcesProps) {
                 subscriptionData={props.subscriptionData.value.value}
                 eventHandlers={props.eventHandlers}
             />
+            }
+            {isLoaded(props.clusterData) &&
             <ClusterDialog
                 isShown={props.resourcesState.isClusterDialogShown}
                 key={`cluster-${props.resourcesState.isClusterDialogShown}` /* Reset state when shown/hidden */}
@@ -108,6 +111,7 @@ export function AzureResources(props: AzureResourcesProps) {
                 subscriptionData={props.subscriptionData.value.value}
                 eventHandlers={props.eventHandlers}
             />
+            }
         </>
         )}
     </>
