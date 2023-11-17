@@ -56,6 +56,7 @@ export class CreateClusterDataProvider implements PanelDataProvider<"createClust
                     args.resourceGroup,
                     args.location,
                     args.name,
+                    args.preset,
                     webview,
                 ),
         };
@@ -108,13 +109,14 @@ export class CreateClusterDataProvider implements PanelDataProvider<"createClust
         group: WebviewResourceGroup,
         location: string,
         name: string,
+        preset: string,
         webview: MessageSink<ToWebViewMsgDef>,
     ) {
         if (isNewResourceGroup) {
             await createResourceGroup(group, webview, this.resourceManagementClient);
         }
 
-        await createCluster(group, location, name, webview, this.containerServiceClient);
+        await createCluster(group, location, name, preset, webview, this.containerServiceClient);
     }
 }
 
@@ -152,6 +154,7 @@ async function createCluster(
     group: WebviewResourceGroup,
     location: string,
     name: string,
+    preset: string,
     webview: MessageSink<ToWebViewMsgDef>,
     containerServiceClient: ContainerServiceClient,
 ) {
@@ -162,9 +165,10 @@ async function createCluster(
         errorMessage: null,
     });
 
-    const clusterSpec = getManagedClusterSpec(location, name);
+    const clusterSpec = getManagedClusterSpec(location, name, preset);
 
     try {
+        containerServiceClient.managedClusters.beginCreateOrUpdate(group.name, name, clusterSpec);
         const poller = await containerServiceClient.managedClusters.beginCreateOrUpdate(group.name, name, clusterSpec);
         poller.onProgress((state) => {
             if (state.status === "canceled") {
@@ -203,7 +207,20 @@ async function createCluster(
     }
 }
 
-function getManagedClusterSpec(location: string, name: string): ManagedCluster {
+function getManagedClusterSpec(location: string, name: string, preset: string): ManagedCluster {
+    switch (preset) {
+        case "dev":
+            return getDevTestClusterSpec(location, name);
+        case "economy":
+            return getProductionEconomyClusterSpec(location, name);
+        case "enterprise":
+            return getProductionEnterpriseClusterSpec(location, name);
+        default:
+            return getStandardClusterSpec(location, name);
+    }
+}
+
+function getStandardClusterSpec(location: string, name: string): ManagedCluster {
     return {
         addonProfiles: {},
         location: location,
@@ -214,12 +231,102 @@ function getManagedClusterSpec(location: string, name: string): ManagedCluster {
             {
                 name: "nodepool1",
                 type: "VirtualMachineScaleSets",
-                count: 3,
+                count: 2,
+                enableAutoScaling: true,
+                minCount: 2,
+                maxCount: 5,
+                maxPods: 110,
+                availabilityZones: ["1", "2", "3"],
+                enableNodePublicIP: false,
+                nodeTaints: ["CriticalAddonsOnly=true:NoSchedule"],
+                mode: "System",
+                osSKU: "AzureLinux",
+                osType: "Linux",
+                vmSize: "Standard_D8ds_v5",
+            },
+            {
+                name: "userpool",
+                type: "VirtualMachineScaleSets",
+                count: 2,
+                enableAutoScaling: true,
+                minCount: 2,
+                maxCount: 100,
+                maxPods: 110,
+                availabilityZones: ["1", "2", "3"],
+                enableNodePublicIP: false,
+                mode: "User",
+                osSKU: "AzureLinux",
+                osType: "Linux",
+                vmSize: "Standard_D8ds_v5",
+            },
+        ],
+        dnsPrefix: `${name}-dns`,
+    };
+}
+
+function getDevTestClusterSpec(location: string, name: string): ManagedCluster {
+    return {
+        addonProfiles: {},
+        location: location,
+        identity: {
+            type: "SystemAssigned",
+        },
+        agentPoolProfiles: [
+            {
+                name: "nodepool1",
+                type: "VirtualMachineScaleSets",
+                count: 1,
                 enableNodePublicIP: true,
                 mode: "System",
                 osSKU: "AzureLinux",
                 osType: "Linux",
                 vmSize: "Standard_DS2_v2",
+            },
+        ],
+        dnsPrefix: `${name}-dns`,
+    };
+}
+
+function getProductionEconomyClusterSpec(location: string, name: string): ManagedCluster {
+    return {
+        addonProfiles: {},
+        location: location,
+        identity: {
+            type: "SystemAssigned",
+        },
+        agentPoolProfiles: [
+            {
+                name: "nodepool1",
+                type: "VirtualMachineScaleSets",
+                count: 2,
+                enableNodePublicIP: true,
+                mode: "System",
+                osSKU: "AzureLinux",
+                osType: "Linux",
+                vmSize: "Standard_D8ds_v5",
+            },
+        ],
+        dnsPrefix: `${name}-dns`,
+    };
+}
+
+function getProductionEnterpriseClusterSpec(location: string, name: string): ManagedCluster {
+    return {
+        addonProfiles: {},
+        location: location,
+        identity: {
+            type: "SystemAssigned",
+        },
+        agentPoolProfiles: [
+            {
+                name: "nodepool1",
+                type: "VirtualMachineScaleSets",
+                count: 2,
+                enableNodePublicIP: true,
+                mode: "System",
+                osSKU: "AzureLinux",
+                osType: "Linux",
+                vmSize: "Standard_D16ds_v5",
             },
         ],
         dnsPrefix: `${name}-dns`,

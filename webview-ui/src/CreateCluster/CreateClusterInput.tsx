@@ -2,12 +2,11 @@ import {
     VSCodeButton,
     VSCodeDivider,
     VSCodeDropdown,
-    VSCodeLink,
     VSCodeOption,
     VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faInfoCircle, faTimesCircle } from "@fortawesome/free-solid-svg-icons";
+import { faTimesCircle } from "@fortawesome/free-solid-svg-icons";
 import styles from "./CreateCluster.module.css";
 import { FormEvent, useState } from "react";
 import { Validatable, createHandler, shouldShowMessage, unset } from "../utilities/validation";
@@ -20,6 +19,7 @@ import {
 } from "../../../src/webview-contract/webviewDefinitions/createCluster";
 import { MessageSink } from "../../../src/webview-contract/messaging";
 import { EventDef } from "./helpers/state";
+import { CreateClusterPresetInput } from "./CreateClusterPresetInput";
 
 type ChangeEvent = Event | FormEvent<HTMLElement>;
 
@@ -35,6 +35,7 @@ export function CreateClusterInput(props: CreateClusterInputProps) {
     const [name, setName] = useState<Validatable<string>>(unset());
     const [isNewResourceGroupDialogShown, setIsNewResourceGroupDialogShown] = useState(false);
     const [newResourceGroup, setNewResourceGroup] = useState<ResourceGroup | null>(null);
+    const [presetSelected, setPresetSelected] = useState("standard");
 
     function handleCreateResourceGroupDialogCancel() {
         setIsNewResourceGroupDialogShown(false);
@@ -44,6 +45,10 @@ export function CreateClusterInput(props: CreateClusterInputProps) {
         setIsNewResourceGroupDialogShown(false);
         setExistingResourceGroup(unset());
         setNewResourceGroup(group);
+    }
+
+    function handlePresetSelection(presetSelected: string) {
+        setPresetSelected(presetSelected);
     }
 
     const handleExistingResourceGroupChange = createHandler<ResourceGroup, ChangeEvent, HTMLSelectElement>(
@@ -79,6 +84,7 @@ export function CreateClusterInput(props: CreateClusterInputProps) {
             resourceGroup,
             location: resourceGroup.location,
             name: name.value!,
+            preset: presetSelected,
         };
 
         props.vscode.postCreateClusterRequest(parameters);
@@ -89,14 +95,7 @@ export function CreateClusterInput(props: CreateClusterInputProps) {
         <>
             <form className={styles.createForm} onSubmit={handleSubmit}>
                 <div className={styles.inputContainer}>
-                    <span className={styles.fullWidth}>
-                        <FontAwesomeIcon icon={faInfoCircle} className={styles.infoIndicator} />
-                        This will create a <i>Standard</i> cluster. See &nbsp;
-                        <VSCodeLink href="https://learn.microsoft.com/en-us/azure/aks/quotas-skus-regions#cluster-configuration-presets-in-the-azure-portal">
-                            Presets
-                        </VSCodeLink>
-                        &nbsp; for more information.
-                    </span>
+                    <CreateClusterPresetInput onPresetSelected={handlePresetSelection}></CreateClusterPresetInput>
                     <VSCodeDivider className={styles.fullWidth} />
 
                     <label htmlFor="existing-resource-group-dropdown" className={styles.label}>
