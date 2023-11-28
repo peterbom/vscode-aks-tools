@@ -227,6 +227,7 @@ function withAdditionalServices(...names: string[]): StateUpdater {
             ...state.savedServices,
             ...names.map((name) => ({
                 name,
+                path: name,
                 buildConfig: null,
                 deploymentSpec: null,
                 gitHubWorkflow: null,

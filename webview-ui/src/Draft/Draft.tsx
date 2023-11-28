@@ -76,6 +76,7 @@ export function Draft(initialState: InitialState) {
                     subscriptionData={lazySubscriptionData}
                     repositoryData={lazyRepositoryData}
                     clusterData={lazyClusterData}
+                    allDialogsState={state.allDialogsState}
                     eventHandlers={eventHandlers}
                 />
             )}
@@ -93,7 +94,10 @@ export function Draft(initialState: InitialState) {
                         </p>
                         <VSCodeButton
                             appearance="primary"
-                            onClick={() => eventHandlers.onSetNewServiceDialogShown(true)}
+                            onClick={() => {
+                                eventHandlers.onSetDialogContent({ dialog: "service", content: {} });
+                                eventHandlers.onSetDialogVisibility({ dialog: "service", shown: true });
+                            }}
                         >
                             Create Service
                         </VSCodeButton>
@@ -115,7 +119,10 @@ export function Draft(initialState: InitialState) {
                         />
                         <VSCodeButton
                             appearance="secondary"
-                            onClick={() => eventHandlers.onSetNewServiceDialogShown(true)}
+                            onClick={() => {
+                                eventHandlers.onSetDialogContent({ dialog: "service", content: {} });
+                                eventHandlers.onSetDialogVisibility({ dialog: "service", shown: true });
+                            }}
                         >
                             Create Service
                         </VSCodeButton>
@@ -124,7 +131,7 @@ export function Draft(initialState: InitialState) {
             </div>
 
             <NewServiceDialog
-                isShown={state.isNewServiceDialogShown}
+                state={state.allDialogsState.serviceState}
                 existingNames={state.services.map((s) => s.name)}
                 eventHandlers={eventHandlers}
             />

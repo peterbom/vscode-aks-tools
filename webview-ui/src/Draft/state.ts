@@ -13,6 +13,13 @@ import {
 import { Lazy, newNotLoaded } from "../utilities/lazy";
 import { WebviewStateUpdater } from "../utilities/state";
 import { getWebviewMessageContext } from "../utilities/vscode";
+import {
+    AllDialogsState,
+    DialogContentValue,
+    DialogVisibilityValue,
+    updateDialogContent,
+    updateDialogVisibility,
+} from "./state/dialogs";
 import * as ReferenceDataUpdate from "./state/referenceDataUpdate";
 
 export type EventDef = {
@@ -23,13 +30,11 @@ export type EventDef = {
     setBuiltTagsLoading: RepositoryKey;
     setClustersLoading: ResourceGroupKey;
     setConnectedAcrsLoading: ClusterKey;
-    setNewServiceDialogShown: boolean;
-    createNewService: string;
+    setDialogVisibility: DialogVisibilityValue;
+    setDialogContent: DialogContentValue;
+    createNewService: SavedService;
     setSelectedService: string | null;
     setSubscription: Subscription | null;
-    setSubscriptionDialogShown: boolean;
-    setRepositoryDialogShown: boolean;
-    setClusterDialogShown: boolean;
     setRepository: SavedRepositoryDefinition | null;
     setCluster: SavedClusterDefinition | null;
 };
@@ -81,7 +86,7 @@ export type DraftState = {
     azureResources: AzureResourcesState;
     services: ServicesState[];
     selectedService: string | null;
-    isNewServiceDialogShown: boolean;
+    allDialogsState: AllDialogsState;
 };
 
 export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = {
@@ -100,7 +105,12 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
         },
         services: initialState.savedServices,
         selectedService: initialState.savedServices.length === 1 ? initialState.savedServices[0].name : null,
-        isNewServiceDialogShown: false,
+        allDialogsState: {
+            clusterState: { shown: false, content: {} },
+            repositoryState: { shown: false, content: {} },
+            serviceState: { shown: false, content: {} },
+            subscriptionState: { shown: false, content: {} },
+        },
     }),
     vscodeMessageHandler: {
         getSubscriptionsResponse: (state, subs) => ({
@@ -218,20 +228,19 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
                 args.clusterName,
             ),
         }),
-        setNewServiceDialogShown: (state, shown) => ({ ...state, isNewServiceDialogShown: shown }),
-        createNewService: (state, name) => ({
+        setDialogVisibility: (state, visibilityValue) => ({
             ...state,
-            selectedService: name,
+            allDialogsState: updateDialogVisibility(state.allDialogsState, visibilityValue),
+        }),
+        setDialogContent: (state, contentValue) => ({
+            ...state,
+            allDialogsState: updateDialogContent(state.allDialogsState, contentValue),
+        }),
+        createNewService: (state, service) => ({
+            ...state,
+            selectedService: service.name,
             isNewServiceDialogShown: false,
-            services: [
-                ...state.services,
-                {
-                    name,
-                    buildConfig: null,
-                    deploymentSpec: null,
-                    gitHubWorkflow: null,
-                },
-            ],
+            services: [...state.services, service],
         }),
         setSelectedService: (state, selectedService) => ({ ...state, selectedService }),
         setSubscription: (state, subscription) => ({
@@ -242,18 +251,6 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
                 clusterDefinition: null,
                 repositoryDefinition: null,
             },
-        }),
-        setSubscriptionDialogShown: (state, shown) => ({
-            ...state,
-            azureResources: { ...state.azureResources, isSubscriptionDialogShown: shown },
-        }),
-        setRepositoryDialogShown: (state, shown) => ({
-            ...state,
-            azureResources: { ...state.azureResources, isRepositoryDialogShown: shown },
-        }),
-        setClusterDialogShown: (state, shown) => ({
-            ...state,
-            azureResources: { ...state.azureResources, isClusterDialogShown: shown },
         }),
         setRepository: (state, repositoryDefinition) => ({
             ...state,

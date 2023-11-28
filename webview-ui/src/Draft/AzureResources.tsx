@@ -10,7 +10,7 @@ import {
 import { VSCodeButton, VSCodeDivider, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react";
 import { RepositoryDialog } from "./RepositoryDialog";
 import { Lazy, isLoaded, isLoading, orDefault } from "../utilities/lazy";
-import { Maybe, hasValue, map as maybeMap, nothing } from "../utilities/maybe";
+import { Maybe, hasValue, nothing } from "../utilities/maybe";
 import { ClusterDialog } from "./ClusterDialog";
 import { SubscriptionDialog } from "./SubscriptionDialog";
 import { tryGetByKey } from "../utilities/array";
@@ -20,6 +20,7 @@ import { AcrIcon } from "../icons/acrIcon";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faLink, faLinkSlash } from "@fortawesome/free-solid-svg-icons";
 import { SubscriptionIcon } from "../icons/subscriptionIcon";
+import { AllDialogsState } from "./state/dialogs";
 
 export interface AzureResourcesProps {
     resourcesState: AzureResourcesState;
@@ -27,6 +28,7 @@ export interface AzureResourcesProps {
     subscriptionData: Lazy<Maybe<SubscriptionReferenceData>>;
     repositoryData: Lazy<Maybe<RepositoryReferenceData>>;
     clusterData: Lazy<Maybe<ClusterReferenceData>>;
+    allDialogsState: AllDialogsState;
     eventHandlers: EventHandlers<EventDef>;
 }
 
@@ -55,7 +57,13 @@ export function AzureResources(props: AzureResourcesProps) {
 
                 <VSCodeButton
                     appearance="secondary"
-                    onClick={() => props.eventHandlers.onSetSubscriptionDialogShown(true)}
+                    onClick={() => {
+                        props.eventHandlers.onSetDialogContent({
+                            dialog: "subscription",
+                            content: { subscription: props.resourcesState.selectedSubscription || undefined },
+                        });
+                        props.eventHandlers.onSetDialogVisibility({ dialog: "subscription", shown: true });
+                    }}
                     className={styles.sideControl}
                 >
                     {props.resourcesState.selectedSubscription !== null ? "Change" : "Configure"}
@@ -79,7 +87,16 @@ export function AzureResources(props: AzureResourcesProps) {
                                 {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) && (
                                     <VSCodeButton
                                         appearance="secondary"
-                                        onClick={() => props.eventHandlers.onSetClusterDialogShown(true)}
+                                        onClick={() => {
+                                            props.eventHandlers.onSetDialogContent({
+                                                dialog: "cluster",
+                                                content: props.resourcesState.clusterDefinition || {},
+                                            });
+                                            props.eventHandlers.onSetDialogVisibility({
+                                                dialog: "cluster",
+                                                shown: true,
+                                            });
+                                        }}
                                     >
                                         {hasValue(props.clusterData.value) ? "Change" : "Configure"}
                                     </VSCodeButton>
@@ -128,7 +145,16 @@ export function AzureResources(props: AzureResourcesProps) {
                                 {isLoaded(props.subscriptionData) && hasValue(props.subscriptionData.value) && (
                                     <VSCodeButton
                                         appearance="secondary"
-                                        onClick={() => props.eventHandlers.onSetRepositoryDialogShown(true)}
+                                        onClick={() => {
+                                            props.eventHandlers.onSetDialogContent({
+                                                dialog: "repository",
+                                                content: props.resourcesState.repositoryDefinition || {},
+                                            });
+                                            props.eventHandlers.onSetDialogVisibility({
+                                                dialog: "repository",
+                                                shown: true,
+                                            });
+                                        }}
                                     >
                                         {hasValue(props.repositoryData.value) ? "Change" : "Configure"}
                                     </VSCodeButton>
@@ -141,10 +167,8 @@ export function AzureResources(props: AzureResourcesProps) {
 
             {isLoaded(props.subscriptionData) && (
                 <SubscriptionDialog
-                    isShown={props.resourcesState.isSubscriptionDialogShown}
-                    key={`sub-${props.resourcesState.isSubscriptionDialogShown}` /* Reset state when shown/hidden */}
+                    state={props.allDialogsState.subscriptionState}
                     subscriptionsData={props.subscriptionsData}
-                    selectedSubscription={maybeMap(props.subscriptionData.value, (s) => s.subscription)}
                     eventHandlers={props.eventHandlers}
                 />
             )}
@@ -153,22 +177,14 @@ export function AzureResources(props: AzureResourcesProps) {
                 <>
                     {isLoaded(props.repositoryData) && (
                         <RepositoryDialog
-                            isShown={props.resourcesState.isRepositoryDialogShown}
-                            key={
-                                `repo-${props.resourcesState.isRepositoryDialogShown}` /* Reset state when shown/hidden */
-                            }
-                            repositoryDefinition={props.resourcesState.repositoryDefinition}
+                            state={props.allDialogsState.repositoryState}
                             subscriptionData={subData.value}
                             eventHandlers={props.eventHandlers}
                         />
                     )}
                     {isLoaded(props.clusterData) && (
                         <ClusterDialog
-                            isShown={props.resourcesState.isClusterDialogShown}
-                            key={
-                                `cluster-${props.resourcesState.isClusterDialogShown}` /* Reset state when shown/hidden */
-                            }
-                            clusterDefinition={props.resourcesState.clusterDefinition}
+                            state={props.allDialogsState.clusterState}
                             subscriptionData={subData.value}
                             eventHandlers={props.eventHandlers}
                         />

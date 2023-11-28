@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect } from "react";
 import { Dialog } from "../components/Dialog";
 import { VSCodeButton, VSCodeDivider } from "@vscode/webview-ui-toolkit/react";
 import styles from "./Draft.module.css";
@@ -14,25 +14,21 @@ import {
 } from "../../../src/webview-contract/webviewDefinitions/draft";
 import { EventHandlerFunc, loadAcrs, loadRepositories, loadResourceGroups } from "./dataLoading";
 import { getOrThrow } from "../utilities/array";
-import { Maybe, hasValue, just, nothing } from "../utilities/maybe";
+import { Maybe, hasValue, isNothing, just, nothing } from "../utilities/maybe";
+import { DialogState } from "./state/dialogs";
 
 export interface RepositoryDialogProps {
-    isShown: boolean;
+    state: DialogState<"repository">;
     subscriptionData: SubscriptionReferenceData;
-    repositoryDefinition: SavedRepositoryDefinition | null;
     eventHandlers: EventHandlers<EventDef>;
 }
 
 export function RepositoryDialog(props: RepositoryDialogProps) {
-    const [resourceGroup, setResourceGroup] = useState(props.repositoryDefinition?.resourceGroup || "");
-    const [acrName, setAcrName] = useState(props.repositoryDefinition?.acrName || "");
-    const [repositoryName, setRepositoryName] = useState(props.repositoryDefinition?.repositoryName || "");
-
     const updates: EventHandlerFunc[] = [];
     const { lazyGroups, lazyAcrs, lazyRepositories } = prepareData(
         props.subscriptionData,
-        resourceGroup,
-        acrName,
+        props.state.content.resourceGroup,
+        props.state.content.acrName,
         updates,
     );
 
@@ -40,27 +36,34 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
         updates.map((fn) => fn(props.eventHandlers));
     });
 
-    function canCreate() {
-        // TODO:
-        return resourceGroup && acrName && repositoryName;
+    function validate(): Maybe<SavedRepositoryDefinition> {
+        if (!props.state.content.resourceGroup) return nothing();
+        if (!props.state.content.acrName) return nothing();
+        if (!props.state.content.repositoryName) return nothing();
+
+        return just({
+            resourceGroup: props.state.content.resourceGroup,
+            acrName: props.state.content.acrName,
+            repositoryName: props.state.content.repositoryName,
+        });
     }
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
-        if (!canCreate()) {
+        const repositoryDefinition = validate();
+        if (isNothing(repositoryDefinition)) {
             return;
         }
 
-        props.eventHandlers.onSetRepositoryDialogShown(false);
-        props.eventHandlers.onSetRepository({
-            resourceGroup,
-            acrName,
-            repositoryName,
-        });
+        props.eventHandlers.onSetDialogVisibility({ dialog: "repository", shown: false });
+        props.eventHandlers.onSetRepository(repositoryDefinition.value);
     }
 
     return (
-        <Dialog isShown={props.isShown} onCancel={() => props.eventHandlers.onSetRepositoryDialogShown(false)}>
+        <Dialog
+            isShown={props.state.shown}
+            onCancel={() => props.eventHandlers.onSetDialogVisibility({ dialog: "repository", shown: false })}
+        >
             <h2>Configure Image Repository</h2>
 
             <form onSubmit={handleSubmit}>
@@ -72,10 +75,15 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
                         id="rg-input"
                         className={styles.midControl}
                         resources={lazyGroups}
-                        selectedItem={resourceGroup}
+                        selectedItem={props.state.content.resourceGroup || null}
                         valueGetter={(g) => g}
                         labelGetter={(g) => g}
-                        onSelect={(g) => setResourceGroup(g || "")}
+                        onSelect={(g) =>
+                            props.eventHandlers.onSetDialogContent({
+                                dialog: "repository",
+                                content: { ...props.state.content, resourceGroup: g || undefined },
+                            })
+                        }
                     />
 
                     <label htmlFor="acr-name-input" className={styles.label}>
@@ -86,10 +94,15 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
                             id="acr-name-input"
                             className={styles.midControl}
                             resources={lazyAcrs.value}
-                            selectedItem={acrName}
+                            selectedItem={props.state.content.acrName || null}
                             valueGetter={(n) => n}
                             labelGetter={(n) => n}
-                            onSelect={(n) => setAcrName(n || "")}
+                            onSelect={(n) =>
+                                props.eventHandlers.onSetDialogContent({
+                                    dialog: "repository",
+                                    content: { ...props.state.content, acrName: n || undefined },
+                                })
+                            }
                         />
                     )}
 
@@ -101,10 +114,15 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
                             id="repository-name-input"
                             className={styles.midControl}
                             resources={lazyRepositories.value}
-                            selectedItem={repositoryName}
+                            selectedItem={props.state.content.repositoryName || null}
                             valueGetter={(n) => n}
                             labelGetter={(n) => n}
-                            onSelect={(n) => setRepositoryName(n || "")}
+                            onSelect={(n) =>
+                                props.eventHandlers.onSetDialogContent({
+                                    dialog: "repository",
+                                    content: { ...props.state.content, repositoryName: n || undefined },
+                                })
+                            }
                         />
                     )}
                 </div>
@@ -112,12 +130,14 @@ export function RepositoryDialog(props: RepositoryDialogProps) {
                 <VSCodeDivider />
 
                 <div className={styles.buttonContainer}>
-                    <VSCodeButton type="submit" disabled={!canCreate()}>
+                    <VSCodeButton type="submit" disabled={isNothing(validate())}>
                         Save
                     </VSCodeButton>
                     <VSCodeButton
                         appearance="secondary"
-                        onClick={() => props.eventHandlers.onSetRepositoryDialogShown(false)}
+                        onClick={() =>
+                            props.eventHandlers.onSetDialogVisibility({ dialog: "repository", shown: false })
+                        }
                     >
                         Cancel
                     </VSCodeButton>
@@ -135,8 +155,8 @@ type LocalData = {
 
 function prepareData(
     subscriptionData: SubscriptionReferenceData,
-    resourceGroup: ResourceGroup,
-    acrName: AcrName,
+    resourceGroup: ResourceGroup | undefined,
+    acrName: AcrName | undefined,
     updates: EventHandlerFunc[],
 ): LocalData {
     const returnValue: LocalData = {

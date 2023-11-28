@@ -53,6 +53,7 @@ export type SavedGitHubWorkflow = {
 
 export type SavedService = {
     name: string;
+    path: string;
     buildConfig: SavedBuildConfig | null;
     deploymentSpec: SavedDeploymentSpec | null;
     gitHubWorkflow: SavedGitHubWorkflow | null;
