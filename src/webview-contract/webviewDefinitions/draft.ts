@@ -1,4 +1,5 @@
 import { WebviewDefinition } from "../webviewTypes";
+import { FilePickerOptions, FilePickerResult } from "./shared/fileSystemTypes";
 
 export type SavedBuildConfig = {
     dockerfilePath: string;
@@ -105,6 +106,7 @@ export type ToWebViewMsgDef = {
     getConnectedAcrsResponse: ClusterKey & {
         acrs: AcrKey[];
     };
+    pickFileResponse: FilePickerResult | null;
 };
 
 export type ToVsCodeMsgDef = {
@@ -116,6 +118,7 @@ export type ToVsCodeMsgDef = {
     getBuiltTagsRequest: RepositoryKey;
     getClustersRequest: ResourceGroupKey;
     getConnectedAcrsRequest: ClusterKey;
+    pickFileRequest: FilePickerOptions;
 };
 
 export type DraftDefinition = WebviewDefinition<InitialState, ToVsCodeMsgDef, ToWebViewMsgDef>;

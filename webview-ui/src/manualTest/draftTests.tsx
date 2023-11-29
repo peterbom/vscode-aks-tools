@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { MessageHandler, MessageSink } from "../../../src/webview-contract/messaging";
 import {
     AcrKey,
@@ -19,6 +20,15 @@ import {
 import { Draft } from "../Draft/Draft";
 import { stateUpdater } from "../Draft/state";
 import { Scenario } from "../utilities/manualTest";
+import { aksStoreDemoFiles } from "./draftData/testFileSystems";
+import { FilePicker } from "./utilities/filePicker";
+import { TestDialogEvents } from "./utilities/testDialogEvents";
+import {
+    Directory,
+    FilePickerOptions,
+    FilePickerResult,
+} from "../../../src/webview-contract/webviewDefinitions/shared/fileSystemTypes";
+import { fromFindOutput } from "./draftData/testFileSystemUtils";
 
 const appDeploymentSub: Subscription = { id: "f3adef54-889d-49cf-87c8-5fd622071914", name: "App Deployment Sub" };
 const prodStoreSub: Subscription = { id: "49dfdd93-df02-46d3-86d2-f77ef1ab2a45", name: "Prod Store Sub" };
@@ -93,6 +103,7 @@ type ScenarioData = {
     name: string;
     initialState: InitialState;
     referenceData: ReferenceData;
+    rootDir: Directory;
 };
 
 type ReferenceData = {
@@ -144,6 +155,7 @@ const scenarioDataItems: ScenarioData[] = [
         referenceData: {
             subscriptions: corpSubs.map((sub) => createSubscriptionData(sub, [])),
         },
+        rootDir: fromFindOutput(aksStoreDemoFiles, "/code/aks-store-demo"),
     },
     {
         name: "single service",
@@ -160,6 +172,7 @@ const scenarioDataItems: ScenarioData[] = [
                 createSubscriptionData(sub, ["contoso", "other-app"]),
             ),
         },
+        rootDir: fromFindOutput(aksStoreDemoFiles, "/code/aks-store-demo"),
     },
     {
         name: "store demo - clean",
@@ -173,6 +186,7 @@ const scenarioDataItems: ScenarioData[] = [
                 createSubscriptionData(sub, ["aks-store-demo", "other-app"]),
             ),
         },
+        rootDir: fromFindOutput(aksStoreDemoFiles, "/code/aks-store-demo"),
     },
     {
         name: "store demo - populated",
@@ -189,6 +203,7 @@ const scenarioDataItems: ScenarioData[] = [
                 createSubscriptionData(sub, ["aks-store-demo", "other-app"]),
             ),
         },
+        rootDir: fromFindOutput(aksStoreDemoFiles, "/code/aks-store-demo"),
     },
 ];
 
@@ -309,6 +324,7 @@ export function getDraftScenarios() {
     function getMessageHandler(
         webview: MessageSink<ToWebViewMsgDef>,
         scenarioData: ScenarioData,
+        dialogEvents: TestDialogEvents,
     ): MessageHandler<ToVsCodeMsgDef> {
         return {
             createNewService: () => undefined,
@@ -319,6 +335,7 @@ export function getDraftScenarios() {
             getBuiltTagsRequest: handleGetBuildTagsRequest,
             getClustersRequest: handleGetClustersRequest,
             getConnectedAcrsRequest: handleGetAcrsRequest,
+            pickFileRequest: handlePickFileRequest,
         };
 
         async function handleGetSubscriptionsRequest() {
@@ -379,17 +396,23 @@ export function getDraftScenarios() {
                 acrs: clusterData.connectedAcrs,
             });
         }
+
+        async function handlePickFileRequest(options: FilePickerOptions) {
+            const result = await dialogEvents.pickFile(options);
+            webview.postPickFileResponse(result);
+        }
     }
 
-    return scenarioDataItems.map((data) =>
-        Scenario.create(
+    return scenarioDataItems.map((data) => {
+        const dialogEvents = new TestDialogEvents();
+        return Scenario.create(
             "draft",
             data.name,
-            () => <Draft {...data.initialState} />,
-            (webview) => getMessageHandler(webview, data),
+            () => <DraftWithDialogs initialState={data.initialState} events={dialogEvents} rootDir={data.rootDir} />,
+            (webview) => getMessageHandler(webview, data, dialogEvents),
             stateUpdater.vscodeMessageHandler,
-        ),
-    );
+        );
+    });
 }
 
 function getSubscriptionData(referenceData: ReferenceData, key: SubscriptionKey): SubscriptionData {
@@ -436,4 +459,44 @@ function getClusterData(referenceData: ReferenceData, key: ClusterKey): ClusterD
         );
     }
     return clusterData;
+}
+
+type DraftWithDialogsProps = {
+    initialState: InitialState;
+    events: TestDialogEvents;
+    rootDir: Directory;
+};
+
+function DraftWithDialogs(props: DraftWithDialogsProps) {
+    const [filePickerShown, setFilePickerShown] = useState(false);
+    const [filePickerOptions, setFilePickerOptions] = useState<FilePickerOptions>({
+        type: "file",
+        mustExist: false,
+    });
+
+    useEffect(() => {
+        props.events.onPickFileRequest((options) => {
+            setFilePickerOptions(options);
+            setFilePickerShown(true);
+        });
+    }, [props.events]);
+
+    function handleFilePickerClose(result: FilePickerResult | null) {
+        setFilePickerShown(false);
+        props.events.notifyFilePickerResult(result);
+    }
+
+    return (
+        <>
+            <Draft {...props.initialState} />
+            {filePickerShown && (
+                <FilePicker
+                    shown={filePickerShown}
+                    options={filePickerOptions}
+                    closeRequested={handleFilePickerClose}
+                    rootDir={props.rootDir}
+                />
+            )}
+        </>
+    );
 }

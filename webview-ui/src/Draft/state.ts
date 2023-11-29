@@ -174,6 +174,7 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
                 args.acrs,
             ),
         }),
+        pickFileResponse: (state) => state, // TODO
     },
     eventHandler: {
         setSubscriptionsLoading: (state) => ({
@@ -272,4 +273,5 @@ export const vscode = getWebviewMessageContext<"draft">({
     getBuiltTagsRequest: null,
     getClustersRequest: null,
     getConnectedAcrsRequest: null,
+    pickFileRequest: null,
 });

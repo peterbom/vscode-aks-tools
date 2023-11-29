@@ -1,6 +1,6 @@
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
-import { AzureResourcesState, EventDef, ServicesState } from "./state";
+import { AzureResourcesState, EventDef, ServicesState, vscode } from "./state";
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react";
 
 export interface ServiceProps {
@@ -31,6 +31,12 @@ export function Service(props: ServiceProps) {
                     appearance="secondary"
                     onClick={() => {
                         /*TODO*/
+                        vscode.postPickFileRequest({
+                            type: "file",
+                            mustExist: false,
+                            startIn: `/code/aks-store-demo/${props.serviceState.path}`,
+                            suggestedName: "Dockerfile",
+                        });
                     }}
                     className={styles.sideControl}
                 >
