@@ -1,39 +1,74 @@
 import {
-    FilePickerOptions,
-    FilePickerResult,
+    OpenFileOptions,
+    OpenFileResult,
+    SaveFileOptions,
+    SaveFileResult,
 } from "../../../../src/webview-contract/webviewDefinitions/shared/fileSystemTypes";
 
 export class TestDialogEvents extends EventTarget {
-    notifyFilePickerResult(result: FilePickerResult | null) {
-        this.dispatchEvent(new CustomEvent("fileSystemItemPicked", { detail: result }));
+    notifySaveFileResult(result: SaveFileResult | null) {
+        this.dispatchEvent(new CustomEvent("saveFileResult", { detail: result }));
     }
 
-    onPickFileRequest(handler: (options: FilePickerOptions) => void) {
-        this.addEventListener("filePickerLaunchRequested", (e) => {
+    notifyOpenFileResult(result: OpenFileResult | null) {
+        this.dispatchEvent(new CustomEvent("openFileResult", { detail: result }));
+    }
+
+    onSaveFileRequest(handler: (options: SaveFileOptions) => void) {
+        this.addEventListener("saveFileRequest", (e) => {
             const customEvent = e as CustomEvent;
-            const options = customEvent.detail as FilePickerOptions;
+            const options = customEvent.detail as SaveFileOptions;
             handler(options);
         });
     }
 
-    async pickFile(options: FilePickerOptions): Promise<FilePickerResult | null> {
-        let handler: (item: FilePickerResult | null) => void;
+    onOpenFileRequest(handler: (options: OpenFileOptions) => void) {
+        this.addEventListener("openFileRequest", (e) => {
+            const customEvent = e as CustomEvent;
+            const options = customEvent.detail as OpenFileOptions;
+            handler(options);
+        });
+    }
+
+    async saveFile(options: SaveFileOptions): Promise<SaveFileResult | null> {
+        let handler: (item: SaveFileResult | null) => void;
         const listener: EventListener = (e) => {
-            const result = (e as CustomEvent).detail as FilePickerResult | null;
+            const result = (e as CustomEvent).detail as SaveFileResult | null;
             if (handler) {
                 handler(result);
             }
         };
 
-        const promise = new Promise<FilePickerResult | null>((resolve) => {
+        const promise = new Promise<SaveFileResult | null>((resolve) => {
             handler = resolve;
         });
 
-        this.addEventListener("fileSystemItemPicked", listener);
-        this.dispatchEvent(new CustomEvent("filePickerLaunchRequested", { detail: options }));
+        this.addEventListener("saveFileResult", listener);
+        this.dispatchEvent(new CustomEvent("saveFileRequest", { detail: options }));
 
         const result = await promise;
-        this.removeEventListener("fileSystemItemPicked", listener);
+        this.removeEventListener("saveFileResult", listener);
+        return result;
+    }
+
+    async openFile(options: OpenFileOptions): Promise<OpenFileResult | null> {
+        let handler: (item: OpenFileResult | null) => void;
+        const listener: EventListener = (e) => {
+            const result = (e as CustomEvent).detail as OpenFileResult | null;
+            if (handler) {
+                handler(result);
+            }
+        };
+
+        const promise = new Promise<OpenFileResult | null>((resolve) => {
+            handler = resolve;
+        });
+
+        this.addEventListener("openFileResult", listener);
+        this.dispatchEvent(new CustomEvent("openFileRequest", { detail: options }));
+
+        const result = await promise;
+        this.removeEventListener("openFileResult", listener);
         return result;
     }
 }

@@ -2,6 +2,8 @@ import {
     AcrKey,
     ClusterKey,
     ImageTag,
+    PickFileSituation,
+    PickFolderSituation,
     RepositoryKey,
     ResourceGroupKey,
     SavedClusterDefinition,
@@ -9,7 +11,13 @@ import {
     SavedService,
     Subscription,
     SubscriptionKey,
+    WorkspaceConfig,
 } from "../../../src/webview-contract/webviewDefinitions/draft";
+import {
+    OpenFileResult,
+    SaveFileResult,
+} from "../../../src/webview-contract/webviewDefinitions/shared/fileSystemTypes";
+import { replaceItem } from "../utilities/array";
 import { Lazy, newNotLoaded } from "../utilities/lazy";
 import { WebviewStateUpdater } from "../utilities/state";
 import { getWebviewMessageContext } from "../utilities/vscode";
@@ -21,6 +29,7 @@ import {
     updateDialogVisibility,
 } from "./state/dialogs";
 import * as ReferenceDataUpdate from "./state/referenceDataUpdate";
+import * as ServiceUpdate from "./state/serviceUpdate";
 
 export type EventDef = {
     setSubscriptionsLoading: void;
@@ -78,20 +87,20 @@ export type AzureResourcesState = {
     isClusterDialogShown: boolean;
 };
 
-export type ServicesState = SavedService;
+export type ServiceState = SavedService;
 
 export type DraftState = {
-    workspaceName: string;
+    workspaceConfig: WorkspaceConfig;
     referenceData: ReferenceData;
     azureResources: AzureResourcesState;
-    services: ServicesState[];
+    services: ServiceState[];
     selectedService: string | null;
     allDialogsState: AllDialogsState;
 };
 
 export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = {
     createState: (initialState) => ({
-        workspaceName: initialState.workspaceName,
+        workspaceConfig: initialState.workspaceConfig,
         referenceData: {
             subscriptions: newNotLoaded(),
         },
@@ -174,7 +183,8 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
                 args.acrs,
             ),
         }),
-        pickFileResponse: (state) => state, // TODO
+        pickFileResponse: (state, args) => handlePickFileResponse(state, args.situation, args.result),
+        pickFolderResponse: (state, args) => handlePickFolderResponse(state, args.situation, args.result),
     },
     eventHandler: {
         setSubscriptionsLoading: (state) => ({
@@ -264,6 +274,43 @@ export const stateUpdater: WebviewStateUpdater<"draft", EventDef, DraftState> = 
     },
 };
 
+function handlePickFileResponse(state: DraftState, situation: PickFileSituation, result: SaveFileResult): DraftState {
+    switch (situation) {
+        case PickFileSituation.DockerfilePath:
+            return updateSelectedService(state, (svc) => ServiceUpdate.updateDockerfilePath(svc, result));
+    }
+}
+
+function handlePickFolderResponse(
+    state: DraftState,
+    situation: PickFolderSituation,
+    result: OpenFileResult,
+): DraftState {
+    state.allDialogsState.serviceState.content.relativePath;
+    switch (situation) {
+        case PickFolderSituation.NewServicePath:
+            return {
+                ...state,
+                allDialogsState: updateDialogContent(state.allDialogsState, {
+                    dialog: "service",
+                    content: { ...state.allDialogsState.serviceState.content, relativePath: result.path },
+                }),
+            };
+        case PickFolderSituation.DeploymentSpecPath:
+            throw new Error("Not implemented");
+        case PickFolderSituation.GitHubWorkflowFilePath:
+            throw new Error("Not implemented");
+    }
+}
+
+function updateSelectedService(state: DraftState, updater: (serviceState: ServiceState) => ServiceState): DraftState {
+    if (!state.selectedService) return state;
+    return {
+        ...state,
+        services: replaceItem(state.services, (s) => s.name === state.selectedService, updater),
+    };
+}
+
 export const vscode = getWebviewMessageContext<"draft">({
     createNewService: null,
     getSubscriptionsRequest: null,
@@ -274,4 +321,5 @@ export const vscode = getWebviewMessageContext<"draft">({
     getClustersRequest: null,
     getConnectedAcrsRequest: null,
     pickFileRequest: null,
+    pickFolderRequest: null,
 });

@@ -7,19 +7,29 @@ import styles from "./FilePicker.module.css";
 import {
     Directory,
     FileOrDirectory,
-    FilePickerOptions,
-    FilePickerResult,
+    asPathParts,
+    asPathString,
+    findFileSystemItem,
     isDirectory,
+    matchesFilter,
+} from "../draftData/testFileSystemUtils";
+import {
+    FileFilters,
+    OpenFileOptions,
+    OpenFileResult,
+    SaveFileOptions,
+    SaveFileResult,
 } from "../../../../src/webview-contract/webviewDefinitions/shared/fileSystemTypes";
-import { asPathParts, findFileSystemItem } from "../draftData/testFileSystemUtils";
+import { Maybe, hasValue, isNothing, just, nothing } from "../../utilities/maybe";
 
 type ChangeEvent = Event | FormEvent<HTMLElement>;
 
 export type FilePickerProps = {
     shown: boolean;
     rootDir: Directory;
-    options: FilePickerOptions;
-    closeRequested: (result: FilePickerResult | null) => void;
+    isSaving: boolean;
+    options: SaveFileOptions | OpenFileOptions;
+    closeRequested: (result: SaveFileResult | OpenFileResult | null) => void;
 };
 
 export function FilePicker(props: FilePickerProps) {
@@ -28,11 +38,25 @@ export function FilePicker(props: FilePickerProps) {
     const [existingItem, setExistingItem] = useState<FileOrDirectory | null>(initialState.existingItem);
 
     const selectedItem = existingItem || newItem || null;
-    const exists = selectedItem !== null;
-    const filename = selectedItem ? selectedItem.name : "";
+    const suggestedFilename = getSuggestedName(props);
+    const selectedItemFilename = selectedItem ? selectedItem.name : "";
+    const mustExist = !props.isSaving;
+
+    // The item selected in the tree is the selected file, if it exists,
+    // or the parent directory, if the file doesn't exist.
+    const treeSelectedItem = existingItem || (newItem && findFileSystemItem(props.rootDir, newItem.path)) || null;
 
     function handleItemSelected(item: FileOrDirectory) {
-        setExistingItem(item);
+        if (item.type === "directory" && props.isSaving && suggestedFilename) {
+            const itemPath = [...item.path, suggestedFilename];
+            const updatedExistingItem = findFileSystemItem(props.rootDir, itemPath);
+            setExistingItem(updatedExistingItem);
+            if (!updatedExistingItem) {
+                setNewItem(createNewItem(props, item, suggestedFilename));
+            }
+        } else {
+            setExistingItem(item);
+        }
     }
 
     function handleFilenameChange(e: ChangeEvent) {
@@ -41,54 +65,66 @@ export function FilePicker(props: FilePickerProps) {
         if (filename) {
             const updatedNewItem = createNewItem(props, selectedItem, filename);
             setNewItem(updatedNewItem);
-            const existingItem = findFileSystemItem(
-                props.rootDir,
-                [...updatedNewItem.path, updatedNewItem.name],
-                props.options.type,
-            );
+            const existingItem = findFileSystemItem(props.rootDir, [...updatedNewItem.path, updatedNewItem.name]);
             setExistingItem(existingItem);
         } else {
             setNewItem(null);
         }
     }
 
+    function validate(): Maybe<SaveFileResult | OpenFileResult> {
+        if (!props.isSaving) {
+            if (existingItem === null) return nothing();
+            if (existingItem.type !== (props.options as OpenFileOptions).type) return nothing();
+            return just({ path: `/${existingItem.path.join("/")}/${existingItem.name}` });
+        }
+
+        if (selectedItem === null) return nothing();
+        return just({
+            path: asPathString(selectedItem),
+            exists: selectedItem === existingItem,
+        });
+    }
+
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
-        props.closeRequested(
-            selectedItem
-                ? {
-                      path: `/${selectedItem.path.join("/")}/${selectedItem.name}`,
-                      type: selectedItem.type,
-                      exists,
-                  }
-                : null,
-        );
+        const result = validate();
+        if (hasValue(result)) {
+            props.closeRequested(result.value);
+        }
     }
 
     return (
         <Dialog isShown={props.shown} onCancel={() => props.closeRequested(null)}>
-            <h2>Pick File</h2>
+            <h2>{props.options.title}</h2>
 
             <form onSubmit={handleSubmit}>
                 <VSCodeDivider />
                 <FileSystemNodes
                     items={[props.rootDir]}
+                    filters={props.options.filters || {}}
+                    directoriesOnly={!props.isSaving && (props.options as OpenFileOptions).type === "directory"}
                     handleItemSelected={handleItemSelected}
-                    selectedItem={selectedItem}
+                    selectedItem={treeSelectedItem}
                 />
 
-                <VSCodeDivider />
+                <div className={styles.inputContainer}>
+                    <label className={styles.label} htmlFor="filename-input">
+                        File:
+                    </label>
+                    <VSCodeTextField
+                        id="filename-input"
+                        className={styles.control}
+                        value={selectedItemFilename}
+                        readOnly={mustExist}
+                        onInput={handleFilenameChange}
+                    />
+                </div>
 
-                <label htmlFor="filename-input">File:</label>
-                <VSCodeTextField
-                    id="filename-input"
-                    value={filename}
-                    readOnly={props.options.mustExist}
-                    onInput={handleFilenameChange}
-                />
-
-                <div>
-                    <VSCodeButton type="submit">Save</VSCodeButton>
+                <div className={styles.buttonContainer}>
+                    <VSCodeButton type="submit" disabled={isNothing(validate())}>
+                        {props.options.buttonLabel || "Select"}
+                    </VSCodeButton>
                     <VSCodeButton appearance="secondary" onClick={() => props.closeRequested(null)}>
                         Cancel
                     </VSCodeButton>
@@ -103,18 +139,19 @@ type InitialState = {
     existingItem: FileOrDirectory | null;
 };
 
+function getSuggestedName(props: FilePickerProps): string | null {
+    const defaultPathParts = props.options.defaultPath ? asPathParts(props.options.defaultPath) : [];
+    return defaultPathParts.length > 0 ? defaultPathParts[defaultPathParts.length - 1] : null;
+}
+
 function getInitialState(props: FilePickerProps): InitialState {
-    const fileName = props.options.suggestedName || null;
-    const canCreateNewItem = !props.options.mustExist && fileName ? true : false;
+    const defaultPathParts = props.options.defaultPath ? asPathParts(props.options.defaultPath) : [];
+    const suggestedName = getSuggestedName(props);
+    const canCreateNewItem = props.isSaving && suggestedName ? true : false;
+    const newItem = canCreateNewItem ? createNewItem(props, null, suggestedName!) : null;
 
-    const startPath = props.options.startIn?.split("/") || props.rootDir.path;
-    const newItem = canCreateNewItem ? createNewItem(props, null, fileName!) : null;
-
-    const existingItemPath = [...startPath, props.options.startIn || null, fileName || null].filter(
-        (dir) => dir !== null,
-    ) as string[];
-
-    const existingItem = findFileSystemItem(props.rootDir, existingItemPath, props.options.type);
+    const startPathParts = defaultPathParts.length > 0 ? defaultPathParts : props.rootDir.path;
+    const existingItem = findFileSystemItem(props.rootDir, startPathParts);
 
     return { newItem, existingItem };
 }
@@ -124,24 +161,23 @@ function createNewItem(
     selectedItem: FileOrDirectory | null,
     filename: string,
 ): FileOrDirectory {
-    const path =
-        selectedItem?.path || (props.options.startIn ? asPathParts(props.options.startIn) : null) || props.rootDir.path;
-    return props.options.type === "directory"
-        ? {
-              name: filename,
-              type: "directory",
-              contents: [],
-              path,
-          }
-        : {
-              name: filename,
-              type: "file",
-              path,
-          };
+    const defaultPathParts = props.options.defaultPath ? asPathParts(props.options.defaultPath) : [];
+    let path = defaultPathParts || props.rootDir.path;
+    if (selectedItem) {
+        path = selectedItem.type === "directory" ? [...selectedItem.path, selectedItem.name] : selectedItem.path;
+    }
+
+    return {
+        name: filename,
+        type: "file",
+        path,
+    };
 }
 
 type FileSystemNodesProps = {
     items: FileOrDirectory[];
+    filters: FileFilters;
+    directoriesOnly: boolean;
     handleItemSelected: (item: FileOrDirectory) => void;
     selectedItem: FileOrDirectory | null;
 };
@@ -151,8 +187,10 @@ function FileSystemNodes(props: FileSystemNodesProps) {
         <ul className={styles.nodeList}>
             {props.items.map((item) => (
                 <FileSystemNode
-                    item={item}
                     key={`${item.path.join("/")}/${item.name}`}
+                    item={item}
+                    filters={props.filters}
+                    directoriesOnly={props.directoriesOnly}
                     selectedItem={props.selectedItem}
                     handleItemSelected={props.handleItemSelected}
                 />
@@ -163,6 +201,8 @@ function FileSystemNodes(props: FileSystemNodesProps) {
 
 type FileSystemNodeProps = {
     item: FileOrDirectory;
+    filters: FileFilters;
+    directoriesOnly: boolean;
     handleItemSelected: (item: FileOrDirectory) => void;
     selectedItem: FileOrDirectory | null;
 };
@@ -192,7 +232,11 @@ function FileSystemNode(props: FileSystemNodeProps) {
                 </span>
                 {expanded && isDirectory(props.item) && (
                     <FileSystemNodes
-                        items={props.item.contents}
+                        items={props.item.contents.filter((item) =>
+                            matchesFilter(item, props.filters, props.directoriesOnly),
+                        )}
+                        filters={props.filters}
+                        directoriesOnly={props.directoriesOnly}
                         handleItemSelected={props.handleItemSelected}
                         selectedItem={props.selectedItem}
                     />

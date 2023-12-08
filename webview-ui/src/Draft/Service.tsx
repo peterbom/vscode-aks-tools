@@ -1,15 +1,18 @@
 import styles from "./Draft.module.css";
 import { EventHandlers } from "../utilities/state";
-import { AzureResourcesState, EventDef, ServicesState, vscode } from "./state";
+import { AzureResourcesState, EventDef, ServiceState, vscode } from "./state";
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react";
+import { PickFileSituation, WorkspaceConfig } from "../../../src/webview-contract/webviewDefinitions/draft";
 
 export interface ServiceProps {
+    workspaceConfig: WorkspaceConfig;
     azureResourceState: AzureResourcesState;
-    serviceState: ServicesState;
+    serviceState: ServiceState;
     eventHandlers: EventHandlers<EventDef>;
 }
 
 export function Service(props: ServiceProps) {
+    const separator = props.workspaceConfig.pathSeparator;
     return (
         <>
             <h3>Service: {props.serviceState.name}</h3>
@@ -30,12 +33,14 @@ export function Service(props: ServiceProps) {
                 <VSCodeButton
                     appearance="secondary"
                     onClick={() => {
-                        /*TODO*/
                         vscode.postPickFileRequest({
-                            type: "file",
-                            mustExist: false,
-                            startIn: `/code/aks-store-demo/${props.serviceState.path}`,
-                            suggestedName: "Dockerfile",
+                            situation: PickFileSituation.DockerfilePath,
+                            options: {
+                                defaultPath: `${props.workspaceConfig.fullPath}${separator}${props.serviceState.relativePath}${separator}Dockerfile`,
+                                filters: { Dockerfiles: ["Dockerfile", "Dockerfile.*"] },
+                                buttonLabel: "Select",
+                                title: `Dockerfile location for ${props.serviceState.name}`,
+                            },
                         });
                     }}
                     className={styles.sideControl}

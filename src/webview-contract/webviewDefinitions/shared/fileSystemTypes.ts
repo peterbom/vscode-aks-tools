@@ -1,35 +1,28 @@
 export type FileSystemType = "file" | "directory";
 
-type FileOrDirectoryItem = {
-    type: FileSystemType;
-    name: string;
-    path: string[];
-};
+export type FileFilters = { [name: string]: string[] };
 
-export type Directory = FileOrDirectoryItem & {
-    type: "directory";
-    contents: FileOrDirectory[];
-};
-
-export type File = FileOrDirectoryItem & {
-    type: "file";
-};
-
-export type FileOrDirectory = File | Directory;
-
-export function isDirectory(fileOrDirectory: FileOrDirectory): fileOrDirectory is Directory {
-    return fileOrDirectory.type === "directory";
+export interface SaveFileOptions {
+    defaultPath?: string;
+    buttonLabel?: string;
+    filters?: FileFilters;
+    title?: string;
 }
 
-export type FilePickerOptions = {
+export interface OpenFileOptions {
+    defaultPath?: string;
+    buttonLabel?: string;
     type: FileSystemType;
-    mustExist: boolean;
-    startIn?: string;
-    suggestedName?: string;
+    canSelectMany?: boolean;
+    filters?: FileFilters;
+    title?: string;
+}
+
+export type SaveFileResult = {
+    path: string;
+    exists: boolean;
 };
 
-export type FilePickerResult = {
+export type OpenFileResult = {
     path: string;
-    type: FileSystemType;
-    exists: boolean;
 };

@@ -1,5 +1,11 @@
 import { WebviewDefinition } from "../webviewTypes";
-import { FilePickerOptions, FilePickerResult } from "./shared/fileSystemTypes";
+import { OpenFileOptions, OpenFileResult, SaveFileOptions, SaveFileResult } from "./shared/fileSystemTypes";
+
+export type WorkspaceConfig = {
+    name: string;
+    fullPath: string;
+    pathSeparator: string;
+};
 
 export type SavedBuildConfig = {
     dockerfilePath: string;
@@ -54,7 +60,7 @@ export type SavedGitHubWorkflow = {
 
 export type SavedService = {
     name: string;
-    path: string;
+    relativePath: string;
     buildConfig: SavedBuildConfig | null;
     deploymentSpec: SavedDeploymentSpec | null;
     gitHubWorkflow: SavedGitHubWorkflow | null;
@@ -80,8 +86,18 @@ export type RepositoryKey = AcrKey & {
     repositoryName: RepositoryName;
 };
 
+export enum PickFileSituation {
+    DockerfilePath,
+}
+
+export enum PickFolderSituation {
+    NewServicePath,
+    DeploymentSpecPath,
+    GitHubWorkflowFilePath,
+}
+
 export interface InitialState {
-    workspaceName: string;
+    workspaceConfig: WorkspaceConfig;
     savedAzureResources: SavedAzureResources | null;
     savedServices: SavedService[];
 }
@@ -106,7 +122,8 @@ export type ToWebViewMsgDef = {
     getConnectedAcrsResponse: ClusterKey & {
         acrs: AcrKey[];
     };
-    pickFileResponse: FilePickerResult | null;
+    pickFileResponse: { situation: PickFileSituation; result: SaveFileResult };
+    pickFolderResponse: { situation: PickFolderSituation; result: OpenFileResult };
 };
 
 export type ToVsCodeMsgDef = {
@@ -118,7 +135,8 @@ export type ToVsCodeMsgDef = {
     getBuiltTagsRequest: RepositoryKey;
     getClustersRequest: ResourceGroupKey;
     getConnectedAcrsRequest: ClusterKey;
-    pickFileRequest: FilePickerOptions;
+    pickFileRequest: { situation: PickFileSituation; options: SaveFileOptions };
+    pickFolderRequest: { situation: PickFolderSituation; options: OpenFileOptions };
 };
 
 export type DraftDefinition = WebviewDefinition<InitialState, ToVsCodeMsgDef, ToWebViewMsgDef>;

@@ -62,7 +62,7 @@ export function Draft(initialState: InitialState) {
 
     return (
         <>
-            <h2>Draft for {state.workspaceName}</h2>
+            <h2>Draft for {state.workspaceConfig.name}</h2>
 
             {/*
             Place Azure resource selection above service selection, since this applies to _all_ services.
@@ -88,9 +88,9 @@ export function Draft(initialState: InitialState) {
                     <>
                         <p className={styles.fullWidth}>
                             <FontAwesomeIcon className={styles.infoIndicator} icon={faInfoCircle} />
-                            You have not configured any services for your workspace. If {state.workspaceName} contains
-                            code for one or more services for deployment to a Kubernetes cluster, click below to allow
-                            Draft to configure them.
+                            You have not configured any services for your workspace. If {state.workspaceConfig.name}
+                            contains code for one or more services for deployment to a Kubernetes cluster, click below
+                            to allow Draft to configure them.
                         </p>
                         <VSCodeButton
                             appearance="primary"
@@ -132,12 +132,14 @@ export function Draft(initialState: InitialState) {
 
             <NewServiceDialog
                 state={state.allDialogsState.serviceState}
+                workspaceConfig={state.workspaceConfig}
                 existingNames={state.services.map((s) => s.name)}
                 eventHandlers={eventHandlers}
             />
 
             {selectedServiceState && state.azureResources && (
                 <Service
+                    workspaceConfig={state.workspaceConfig}
                     azureResourceState={state.azureResources}
                     serviceState={selectedServiceState}
                     eventHandlers={eventHandlers}

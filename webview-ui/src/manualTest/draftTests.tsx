@@ -8,6 +8,8 @@ import {
     DeploymentSpecType,
     ImageTag,
     InitialState,
+    PickFileSituation,
+    PickFolderSituation,
     RepositoryKey,
     RepositoryName,
     ResourceGroup,
@@ -20,15 +22,16 @@ import {
 import { Draft } from "../Draft/Draft";
 import { stateUpdater } from "../Draft/state";
 import { Scenario } from "../utilities/manualTest";
-import { aksStoreDemoFiles } from "./draftData/testFileSystems";
-import { FilePicker } from "./utilities/filePicker";
+import { aksStoreDemoFiles, cleanWorkspaceFiles, contosoAirDemoFiles } from "./draftData/testFileSystems";
+import { FilePicker } from "./utilities/FilePicker";
 import { TestDialogEvents } from "./utilities/testDialogEvents";
 import {
-    Directory,
-    FilePickerOptions,
-    FilePickerResult,
+    OpenFileOptions,
+    OpenFileResult,
+    SaveFileOptions,
+    SaveFileResult,
 } from "../../../src/webview-contract/webviewDefinitions/shared/fileSystemTypes";
-import { fromFindOutput } from "./draftData/testFileSystemUtils";
+import { Directory, asPathString, fromFindOutput, getRelativePath } from "./draftData/testFileSystemUtils";
 
 const appDeploymentSub: Subscription = { id: "f3adef54-889d-49cf-87c8-5fd622071914", name: "App Deployment Sub" };
 const prodStoreSub: Subscription = { id: "49dfdd93-df02-46d3-86d2-f77ef1ab2a45", name: "Prod Store Sub" };
@@ -151,16 +154,16 @@ const aksStoreDemoPorts = [5001, 3001, 3000, 3002, 8081, 8080, null, null];
 const scenarioDataItems: ScenarioData[] = [
     {
         name: "empty workspace",
-        initialState: makeEmptyInitialState("test-workspace"),
+        initialState: makeEmptyInitialState("/code", "test-workspace"),
         referenceData: {
             subscriptions: corpSubs.map((sub) => createSubscriptionData(sub, [])),
         },
-        rootDir: fromFindOutput(aksStoreDemoFiles, "/code/aks-store-demo"),
+        rootDir: fromFindOutput(cleanWorkspaceFiles, "/code/test-workspace"),
     },
     {
         name: "single service",
         initialState: build(
-            makeEmptyInitialState("test-web-app"),
+            makeEmptyInitialState("/code", "ContosoAir"),
             withAzureResources(appDeploymentSub, "contoso"),
             withAdditionalServices("contoso"),
             withBuildConfigs(3000),
@@ -172,12 +175,12 @@ const scenarioDataItems: ScenarioData[] = [
                 createSubscriptionData(sub, ["contoso", "other-app"]),
             ),
         },
-        rootDir: fromFindOutput(aksStoreDemoFiles, "/code/aks-store-demo"),
+        rootDir: fromFindOutput(contosoAirDemoFiles, "/code/ContosoAir"),
     },
     {
         name: "store demo - clean",
         initialState: build(
-            makeEmptyInitialState("aks-store-demo"),
+            makeEmptyInitialState("/code", "aks-store-demo"),
             withAdditionalServices(...aksStoreDemoServices),
             withBuildConfigs(...aksStoreDemoPorts),
         ),
@@ -191,7 +194,7 @@ const scenarioDataItems: ScenarioData[] = [
     {
         name: "store demo - populated",
         initialState: build(
-            makeEmptyInitialState("aks-store-demo"),
+            makeEmptyInitialState("/code", "aks-store-demo"),
             withAdditionalServices(...aksStoreDemoServices),
             withBuildConfigs(...aksStoreDemoPorts),
             withAzureResources(prodStoreSub, "aks-store-demo"),
@@ -209,9 +212,13 @@ const scenarioDataItems: ScenarioData[] = [
 
 type StateUpdater = (state: InitialState) => InitialState;
 
-function makeEmptyInitialState(workspaceName: string): InitialState {
+function makeEmptyInitialState(workspacePath: string, workspaceName: string): InitialState {
     return {
-        workspaceName: workspaceName,
+        workspaceConfig: {
+            fullPath: `${workspacePath}/${workspaceName}`,
+            name: workspaceName,
+            pathSeparator: "/",
+        },
         savedAzureResources: null,
         savedServices: [],
     };
@@ -242,7 +249,7 @@ function withAdditionalServices(...names: string[]): StateUpdater {
             ...state.savedServices,
             ...names.map((name) => ({
                 name,
-                path: name,
+                relativePath: name,
                 buildConfig: null,
                 deploymentSpec: null,
                 gitHubWorkflow: null,
@@ -335,7 +342,8 @@ export function getDraftScenarios() {
             getBuiltTagsRequest: handleGetBuildTagsRequest,
             getClustersRequest: handleGetClustersRequest,
             getConnectedAcrsRequest: handleGetAcrsRequest,
-            pickFileRequest: handlePickFileRequest,
+            pickFileRequest: (args) => handlePickFileRequest(args.situation, args.options),
+            pickFolderRequest: (args) => handlePickFolderRequest(args.situation, args.options),
         };
 
         async function handleGetSubscriptionsRequest() {
@@ -397,9 +405,20 @@ export function getDraftScenarios() {
             });
         }
 
-        async function handlePickFileRequest(options: FilePickerOptions) {
-            const result = await dialogEvents.pickFile(options);
-            webview.postPickFileResponse(result);
+        async function handlePickFileRequest(situation: PickFileSituation, options: SaveFileOptions) {
+            const result = await dialogEvents.saveFile(options);
+            if (result) {
+                const path = getRelativePath(asPathString(scenarioData.rootDir), result.path);
+                webview.postPickFileResponse({ situation, result: { path, exists: result.exists } });
+            }
+        }
+
+        async function handlePickFolderRequest(situation: PickFolderSituation, options: OpenFileOptions) {
+            const result = await dialogEvents.openFile(options);
+            if (result) {
+                const path = getRelativePath(asPathString(scenarioData.rootDir), result.path);
+                webview.postPickFolderResponse({ situation, result: { path } });
+            }
         }
     }
 
@@ -468,30 +487,36 @@ type DraftWithDialogsProps = {
 };
 
 function DraftWithDialogs(props: DraftWithDialogsProps) {
-    const [filePickerShown, setFilePickerShown] = useState(false);
-    const [filePickerOptions, setFilePickerOptions] = useState<FilePickerOptions>({
-        type: "file",
-        mustExist: false,
-    });
+    const [filePickerOptions, setFilePickerOptions] = useState<SaveFileOptions | OpenFileOptions | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
-        props.events.onPickFileRequest((options) => {
+        props.events.onOpenFileRequest((options) => {
+            setIsSaving(false);
             setFilePickerOptions(options);
-            setFilePickerShown(true);
+        });
+        props.events.onSaveFileRequest((options) => {
+            setIsSaving(true);
+            setFilePickerOptions(options);
         });
     }, [props.events]);
 
-    function handleFilePickerClose(result: FilePickerResult | null) {
-        setFilePickerShown(false);
-        props.events.notifyFilePickerResult(result);
+    function handleFilePickerClose(result: SaveFileResult | OpenFileResult | null) {
+        setFilePickerOptions(null);
+        if (isSaving) {
+            props.events.notifySaveFileResult(result as SaveFileResult);
+        } else {
+            props.events.notifyOpenFileResult(result);
+        }
     }
 
     return (
         <>
             <Draft {...props.initialState} />
-            {filePickerShown && (
+            {filePickerOptions && (
                 <FilePicker
-                    shown={filePickerShown}
+                    shown={true}
+                    isSaving={isSaving}
                     options={filePickerOptions}
                     closeRequested={handleFilePickerClose}
                     rootDir={props.rootDir}
