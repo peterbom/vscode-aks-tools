@@ -461,7 +461,7 @@
         "@typescript-eslint/eslint-plugin": "^6.17.0",
         "@typescript-eslint/parser": "^6.17.0",
         "@vscode/test-electron": "^2.3.8",
-        "chai": "^4.3.10",
+        "chai": "^5.0.3",
         "eslint": "^8.56.0",
         "eslint-webpack-plugin": "^4.0.1",
         "filemanager-webpack-plugin": "^8.0.0",
