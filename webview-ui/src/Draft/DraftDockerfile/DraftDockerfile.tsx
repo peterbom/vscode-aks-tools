@@ -36,9 +36,11 @@ export function DraftDockerfile(initialState: InitialState) {
         eventHandlers.onSetSelectedLanguage(validated);
     }
 
-    function handleLanguageVersionChange(versionName: string | null) {
+    function handleLanguageVersionChange(versionName: string | null, isNew: boolean) {
         const validated = getValidatedLanguageVersion(versionName);
         eventHandlers.onSetSelectedLanguageVersion(validated);
+
+        console.log(`New? ${isNew}`);
 
         function getValidatedLanguageVersion(version: string | null): Validatable<string> {
             if (version === null || version === "" || version.trim() === "") {
