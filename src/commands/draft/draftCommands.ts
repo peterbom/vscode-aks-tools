@@ -1,17 +1,7 @@
-import {
-    authentication,
-    Extension,
-    ExtensionContext,
-    WorkspaceFolder,
-    window,
-    workspace,
-    AuthenticationSession,
-    Uri,
-    FileType,
-} from "vscode";
+import { Extension, ExtensionContext, WorkspaceFolder, window, workspace, Uri, FileType } from "vscode";
 import { DraftDockerfileDataProvider, DraftDockerfilePanel } from "../../panels/draft/DraftDockerfilePanel";
 import { getExtension } from "../utils/host";
-import { Errorable, failed, getErrorMessage } from "../utils/errorable";
+import { failed } from "../utils/errorable";
 import { getDraftBinaryPath } from "../utils/helper/draftBinaryDownload";
 import { DraftDeploymentDataProvider, DraftDeploymentPanel } from "../../panels/draft/DraftDeploymentPanel";
 import * as k8s from "vscode-kubernetes-tools-api";
@@ -26,6 +16,7 @@ import { basename, extname, join } from "path";
 import { getReadySessionProvider } from "../../auth/azureAuth";
 import { IActionContext } from "@microsoft/vscode-azext-utils";
 import { DraftCommandParamsType } from "./types";
+import { getGitHubClient } from "../../auth/gitHubAuth";
 
 export async function draftDockerfile(
     _context: IActionContext,
@@ -121,19 +112,17 @@ export async function draftWorkflow(
         return;
     }
 
-    const session = await getGitHubAuthenticationSession();
-    if (failed(session)) {
-        window.showErrorMessage(session.error);
+    // The Octokit instance is used to interact with the GitHub API. This allows the user to
+    // select the relevant repository and branch to associate with the workflow file.
+    const octokit = await getGitHubClient([]);
+    if (failed(octokit)) {
+        window.showErrorMessage(octokit.error);
         return;
     }
 
-    // The Octokit instance is used to interact with the GitHub API. This allows the user to
-    // select the relevant repository and branch to associate with the workflow file.
-    const octokit = new Octokit({
-        auth: `token ${session.result.accessToken}`,
-    });
-
-    const reposFromRemotes = await Promise.all(workspaceRepository.state.remotes.map((r) => getRepo(octokit, r)));
+    const reposFromRemotes = await Promise.all(
+        workspaceRepository.state.remotes.map((r) => getRepo(octokit.result, r)),
+    );
     const accessibleRepos = reposFromRemotes.filter((f) => f !== null) as GitHubRepo[];
 
     const workflowsUri = Uri.joinPath(workspaceFolder.uri, ".github", "workflows");
@@ -159,7 +148,7 @@ export async function draftWorkflow(
         workspaceFolder,
         draftBinaryPath,
         kubectl,
-        session.result,
+        octokit.result,
         accessibleRepos,
         existingWorkflowFiles,
         params?.initialSelection || {},
@@ -209,17 +198,6 @@ type DraftDependencies = {
     extension: Extension<ExtensionContext>;
     draftBinaryPath: string;
 };
-
-async function getGitHubAuthenticationSession(): Promise<Errorable<AuthenticationSession>> {
-    try {
-        // No special scopes are required for GitHub - we are just listing repositories/branches.
-        const scopes: string[] = [];
-        const session = await authentication.getSession("github", scopes, { createIfNone: true });
-        return { succeeded: true, result: session };
-    } catch (e) {
-        return { succeeded: false, error: `Failed to get GitHub authentication session: ${getErrorMessage(e)}` };
-    }
-}
 
 async function getRepo(octokit: Octokit, remote: Remote): Promise<GitHubRepo | null> {
     const url = remote.fetchUrl || remote.pushUrl;

@@ -1,5 +1,9 @@
 import { FormEvent, useEffect } from "react";
-import { CreateParams, InitialState } from "../../../../src/webview-contract/webviewDefinitions/draft/draftWorkflow";
+import {
+    CreateParams,
+    InitialState,
+    LaunchAuthorizeGitHubWorkflowParams,
+} from "../../../../src/webview-contract/webviewDefinitions/draft/draftWorkflow";
 import {
     DeploymentSpecType,
     GitHubRepo,
@@ -144,6 +148,21 @@ export function DraftWorkflow(initialState: InitialState) {
     function handleAcrSelect(acr: string | null) {
         const validated = acr === null ? missing<string>("ACR is required.") : valid(acr);
         eventHandlers.onSetSelectedAcr(validated);
+    }
+
+    function handleLaunchAuthorizeGitHubWorkflowClick(e: React.MouseEvent) {
+        e.preventDefault();
+        const params: LaunchAuthorizeGitHubWorkflowParams = {
+            initialSubscriptionId: orDefault(state.selectedSubscription, null)?.id || null,
+            initialAcrResourceGroup: orDefault(state.selectedAcrResourceGroup, null) || null,
+            initialAcrName: orDefault(state.selectedAcr, null) || null,
+            initialClusterResourceGroup: orDefault(state.selectedClusterResourceGroup, null) || null,
+            initialClusterName: orDefault(state.selectedCluster, null) || null,
+            initialGitHubRepo: orDefault(state.selectedGitHubRepo, null),
+            initialBranch: orDefault(state.selectedBranchName, null) || null,
+        };
+
+        vscode.postLaunchAuthorizeGitHubWorkflow(params);
     }
 
     function handleRepositorySelect(repository: string | null, isNew: boolean) {
@@ -879,7 +898,7 @@ export function DraftWorkflow(initialState: InitialState) {
                                         {isValueSet(state.selectedGitHubRepo)
                                             ? `(${state.selectedGitHubRepo.value.gitHubRepoOwner}/${state.selectedGitHubRepo.value.gitHubRepoName})`
                                             : ""}{" "}
-                                        <VSCodeLink href="https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure">
+                                        <VSCodeLink href="#" onClick={handleLaunchAuthorizeGitHubWorkflowClick}>
                                             is configured
                                         </VSCodeLink>{" "}
                                         to access the ACR and cluster.

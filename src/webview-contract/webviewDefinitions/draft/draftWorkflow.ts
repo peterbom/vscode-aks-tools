@@ -69,6 +69,17 @@ export type ToVsCodeMsgDef = {
     openFileRequest: string;
     launchDraftDockerfile: void;
     launchDraftDeployment: void;
+    launchAuthorizeGitHubWorkflow: LaunchAuthorizeGitHubWorkflowParams;
+};
+
+export type LaunchAuthorizeGitHubWorkflowParams = {
+    initialSubscriptionId: string | null;
+    initialAcrResourceGroup: string | null;
+    initialAcrName: string | null;
+    initialClusterResourceGroup: string | null;
+    initialClusterName: string | null;
+    initialGitHubRepo: GitHubRepo | null;
+    initialBranch: string | null;
 };
 
 export type ToWebViewMsgDef = {

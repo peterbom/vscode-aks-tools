@@ -131,7 +131,7 @@ async function getServicePrincipalInfo(
     return { succeeded: true, result: spInfo };
 }
 
-function getMicrosoftGraphClientBaseUrl(): string {
+export function getMicrosoftGraphClientBaseUrl(): string {
     const environment = getEnvironment();
     // Environments are from here: https://github.com/Azure/ms-rest-azure-env/blob/6fa17ce7f36741af6ce64461735e6c7c0125f0ed/lib/azureEnvironment.ts#L266-L346
     // They do not contain the MS Graph endpoints, whose values are here:

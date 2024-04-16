@@ -70,10 +70,10 @@ async function waitForSignIn(sessionProvider: AzureSessionProvider): Promise<voi
     });
 }
 
-export function getCredential(sessionProvider: ReadyAzureSessionProvider): TokenCredential {
+export function getCredential(sessionProvider: ReadyAzureSessionProvider, scopes?: string[]): TokenCredential {
     return {
         getToken: async () => {
-            const session = await sessionProvider.getAuthSession();
+            const session = await sessionProvider.getAuthSession({ scopes });
             if (failed(session)) {
                 throw new Error(`No Microsoft authentication session found: ${session.error}`);
             }
