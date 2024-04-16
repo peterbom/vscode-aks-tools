@@ -1,4 +1,5 @@
 import { Message, MessageContext, MessageDefinition, MessageHandler, MessageSink } from "./messaging";
+import { AuthorizeGitHubWorkflowDefinition } from "./webviewDefinitions/authorizeGitHubWorkflow";
 import { ClusterPropertiesDefinition } from "./webviewDefinitions/clusterProperties";
 import { AttachAcrToClusterDefinition } from "./webviewDefinitions/attachAcrToCluster";
 import { CreateClusterDefinition } from "./webviewDefinitions/createCluster";
@@ -33,6 +34,7 @@ export type WebviewDefinition<
  */
 type AllWebviewDefinitions = {
     style: TestStyleViewerDefinition;
+    authorizeGitHubWorkflow: AuthorizeGitHubWorkflowDefinition;
     clusterProperties: ClusterPropertiesDefinition;
     attachAcrToCluster: AttachAcrToClusterDefinition;
     periscope: PeriscopeDefinition;

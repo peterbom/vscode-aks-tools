@@ -70,6 +70,7 @@ export type ToVsCodeMsgDef = {
     launchDraftDockerfile: void;
     launchDraftDeployment: void;
     launchAttachAcrToCluster: LaunchAttachAcrToClusterParams;
+    launchAuthorizeGitHubWorkflow: LaunchAuthorizeGitHubWorkflowParams;
 };
 
 export type LaunchAttachAcrToClusterParams = {
@@ -78,6 +79,16 @@ export type LaunchAttachAcrToClusterParams = {
     initialAcrName: string | null;
     initialClusterResourceGroup: string | null;
     initialClusterName: string | null;
+};
+
+export type LaunchAuthorizeGitHubWorkflowParams = {
+    initialSubscriptionId: string | null;
+    initialAcrResourceGroup: string | null;
+    initialAcrName: string | null;
+    initialClusterResourceGroup: string | null;
+    initialClusterName: string | null;
+    initialGitHubRepo: GitHubRepo | null;
+    initialBranch: string | null;
 };
 
 export type ToWebViewMsgDef = {

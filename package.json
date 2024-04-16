@@ -245,6 +245,11 @@
                 "category": "Automated Deployments"
             },
             {
+                "command": "aks.authorizeGitHubWorkflow",
+                "title": "Authorize a GitHub Workflow",
+                "category": "AKS"
+            },
+            {
                 "command": "aks.showInPortal",
                 "title": "Show In Azure Portal"
             },
@@ -309,6 +314,10 @@
                 },
                 {
                     "command": "aks.draftWorkflow",
+                    "when": "workspaceFolderCount >= 1"
+                },
+                {
+                    "command": "aks.authorizeGitHubWorkflow",
                     "when": "workspaceFolderCount >= 1"
                 }
             ],
@@ -433,6 +442,11 @@
                     "group": "navigation"
                 },
                 {
+                    "command": "aks.authorizeGitHubWorkflow",
+                    "group": "navigation",
+                    "when": "workspaceFolderCount >= 1"
+                },
+                {
                     "command": "aks.draftDeployment",
                     "group": "navigation",
                     "when": "workspaceFolderCount >= 1"
@@ -522,6 +536,7 @@
         "@types/chai": "^4.3.16",
         "@types/decompress": "^4.2.7",
         "@types/js-yaml": "^4.0.9",
+        "@types/libsodium-wrappers": "^0.7.14",
         "@types/mocha": "^10.0.6",
         "@types/node": "^20.14.8",
         "@types/semver": "^7.5.8",
@@ -565,6 +580,7 @@
         "@vscode/extension-telemetry": "^0.9.6",
         "decompress": "^4.2.1",
         "js-yaml": "^4.1.0",
+        "libsodium-wrappers": "^0.7.13",
         "move-file": "^3.1.0",
         "node-fetch": "^3.3.2",
         "rxjs": "^7.8.1",

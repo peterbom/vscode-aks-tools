@@ -16,6 +16,7 @@ import { AzureResourceNodeContributor } from "./tree/azureResourceNodeContributo
 import { setAssetContext } from "./assets";
 import { attachAcrToCluster } from "./commands/aksAttachAcrToCluster/attachAcrToCluster";
 import { draftDeployment, draftDockerfile, draftWorkflow } from "./commands/draft/draftCommands";
+import { authorizeGitHubWorkflow } from "./commands/authorizeGitHubWorkflow/authorizeGitHubWorkflowCommands";
 import {
     aksCRUDDiagnostics,
     aksBestPracticesDiagnostics,
@@ -81,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext) {
         registerCommandWithTelemetry("aks.draftDockerfile", draftDockerfile);
         registerCommandWithTelemetry("aks.draftDeployment", draftDeployment);
         registerCommandWithTelemetry("aks.draftWorkflow", draftWorkflow);
+        registerCommandWithTelemetry("aks.authorizeGitHubWorkflow", authorizeGitHubWorkflow);
         registerCommandWithTelemetry("aks.aksNodeHealthDiagnostics", aksNodeHealth);
         registerCommandWithTelemetry(
             "aks.aksKnownIssuesAvailabilityPerformanceDiagnostics",

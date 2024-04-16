@@ -6,7 +6,7 @@ import {
 import { Errorable, failed, getErrorMessage } from "./errorable";
 import { listAll } from "./arm";
 import { v4 as uuidv4 } from "uuid";
-import { acrProvider, acrResourceName } from "./azureResources";
+import { acrProvider, acrResourceName, clusterProvider, clusterResourceName } from "./azureResources";
 
 export function getPrincipalRoleAssignmentsForAcr(
     client: AuthorizationManagementClient,
@@ -21,9 +21,33 @@ export function getPrincipalRoleAssignmentsForAcr(
     );
 }
 
+export function getPrincipalRoleAssignmentsForCluster(
+    client: AuthorizationManagementClient,
+    principalId: string,
+    clusterResourceGroup: string,
+    clusterName: string,
+): Promise<Errorable<RoleAssignment[]>> {
+    return listAll(
+        client.roleAssignments.listForResource(
+            clusterResourceGroup,
+            clusterProvider,
+            clusterResourceName,
+            clusterName,
+            {
+                filter: `principalId eq '${principalId}'`,
+            },
+        ),
+    );
+}
+
 export function getScopeForAcr(subscriptionId: string, resourceGroup: string, acrName: string): string {
     // ARM resource ID for ACR
-    return `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/${acrProvider}/registries/${acrName}`;
+    return `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/${acrProvider}/${acrResourceName}/${acrName}`;
+}
+
+export function getScopeForCluster(subscriptionId: string, resourceGroup: string, clusterName: string): string {
+    // ARM resource ID for cluster
+    return `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/${clusterProvider}/${clusterResourceName}/${clusterName}`;
 }
 
 // There are several permitted principal types, see: https://learn.microsoft.com/en-us/rest/api/authorization/role-assignments/create?view=rest-authorization-2022-04-01&tabs=HTTP#principaltype

@@ -375,6 +375,7 @@ export const vscode = getWebviewMessageContext<"draftWorkflow">({
     launchDraftDockerfile: null,
     launchDraftDeployment: null,
     launchAttachAcrToCluster: null,
+    launchAuthorizeGitHubWorkflow: null,
 });
 
 function updatePickedFile(

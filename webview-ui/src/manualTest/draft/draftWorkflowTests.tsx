@@ -99,6 +99,10 @@ export function getDraftWorkflowScenarios() {
                 alert(
                     `Launching Attach ACR to Cluster command with initial selection:\n${JSON.stringify(args, null, 2)}`,
                 ),
+            launchAuthorizeGitHubWorkflow: (args) =>
+                alert(
+                    `Launching Authorize GitHub Workflow command with initial selection:\n${JSON.stringify(args, null, 2)}`,
+                ),
         };
 
         async function handlePickFilesRequest(params: PickFilesRequestParams<PickFilesIdentifier>) {

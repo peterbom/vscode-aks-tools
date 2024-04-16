@@ -3,6 +3,7 @@ import {
     CreateParams,
     InitialState,
     LaunchAttachAcrToClusterParams,
+    LaunchAuthorizeGitHubWorkflowParams,
 } from "../../../../src/webview-contract/webviewDefinitions/draft/draftWorkflow";
 import {
     DeploymentSpecType,
@@ -304,6 +305,21 @@ export function DraftWorkflow(initialState: InitialState) {
         };
 
         vscode.postLaunchAttachAcrToCluster(params);
+    }
+
+    function handleLaunchAuthorizeGitHubWorkflowClick(e: React.MouseEvent) {
+        e.preventDefault();
+        const params: LaunchAuthorizeGitHubWorkflowParams = {
+            initialSubscriptionId: orDefault(state.selectedSubscription, null)?.id || null,
+            initialAcrResourceGroup: orDefault(state.selectedAcrResourceGroup, null) || null,
+            initialAcrName: orDefault(state.selectedAcr, null) || null,
+            initialClusterResourceGroup: orDefault(state.selectedClusterResourceGroup, null) || null,
+            initialClusterName: orDefault(state.selectedCluster, null) || null,
+            initialGitHubRepo: orDefault(state.selectedGitHubRepo, null),
+            initialBranch: orDefault(state.selectedBranchName, null) || null,
+        };
+
+        vscode.postLaunchAuthorizeGitHubWorkflow(params);
     }
 
     function validate(): Maybe<CreateParams> {
@@ -896,7 +912,7 @@ export function DraftWorkflow(initialState: InitialState) {
                                         {isValueSet(state.selectedGitHubRepo)
                                             ? `(${state.selectedGitHubRepo.value.gitHubRepoOwner}/${state.selectedGitHubRepo.value.gitHubRepoName})`
                                             : ""}{" "}
-                                        <VSCodeLink href="https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure">
+                                        <VSCodeLink href="#" onClick={handleLaunchAuthorizeGitHubWorkflowClick}>
                                             is configured
                                         </VSCodeLink>{" "}
                                         to access the ACR and cluster.

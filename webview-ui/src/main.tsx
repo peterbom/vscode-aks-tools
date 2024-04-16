@@ -16,6 +16,7 @@ import { TcpDump } from "./TCPDump/TcpDump";
 import { RetinaCapture } from "./RetinaCapture/RetinaCapture";
 import { AttachAcrToCluster } from "./AttachAcrToCluster/AttachAcrToCluster";
 import { DraftDeployment, DraftDockerfile, DraftWorkflow } from "./Draft";
+import { AuthorizeGitHubWorkflow } from "./AuthorizeGitHubWorkflow/AuthorizeGitHubWorkflow";
 
 // There are two modes of launching this application:
 // 1. Via the VS Code extension inside a Webview.
@@ -45,6 +46,7 @@ function getVsCodeContent(): JSX.Element {
     }
 
     const rendererLookup: Record<ContentId, () => JSX.Element> = {
+        authorizeGitHubWorkflow: () => <AuthorizeGitHubWorkflow {...getInitialState()} />,
         createCluster: () => <CreateCluster {...getInitialState()} />,
         style: () => <TestStyleViewer {...getInitialState()} />,
         attachAcrToCluster: () => <AttachAcrToCluster {...getInitialState()} />,

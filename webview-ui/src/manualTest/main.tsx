@@ -5,6 +5,7 @@ import "../main.css";
 import "@vscode/codicons/dist/codicon.css";
 import { TestScenarioSelector } from "./TestScenarioSelector/TestScenarioSelector";
 import { getTestStyleViewerScenarios } from "./testStyleViewerTests";
+import { getAuthorizeGitHubWorkflowScenarios } from "./authorizeGitHubWorkflowTests";
 import { getCreateClusterScenarios } from "./createClusterTests";
 import { getPeriscopeScenarios } from "./periscopeTests";
 import { getDetectorScenarios } from "./detectorTests";
@@ -34,6 +35,7 @@ const root = createRoot(rootElem!);
 
 const contentTestScenarios: Record<ContentId, Scenario[]> = {
     style: getTestStyleViewerScenarios(),
+    authorizeGitHubWorkflow: getAuthorizeGitHubWorkflowScenarios(),
     clusterProperties: getClusterPropertiesScenarios(),
     attachAcrToCluster: getAttachAcrToClusterScenarios(),
     createCluster: getCreateClusterScenarios(),

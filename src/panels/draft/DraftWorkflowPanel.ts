@@ -1,10 +1,11 @@
-import { AuthenticationSession, DocumentSymbol, Uri, WorkspaceFolder, window } from "vscode";
+import { DocumentSymbol, Uri, WorkspaceFolder, window } from "vscode";
 import path from "path";
 import { BasePanel, PanelDataProvider } from "../BasePanel";
 import {
     ExistingFile,
     InitialState,
     LaunchAttachAcrToClusterParams,
+    LaunchAuthorizeGitHubWorkflowParams,
     PickFilesIdentifier,
     ToVsCodeMsgDef,
     ToWebViewMsgDef,
@@ -36,6 +37,10 @@ import {
     AttachAcrToClusterParams,
     launchAttachAcrToClusterCommand,
 } from "../../commands/aksAttachAcrToCluster/attachAcrToCluster";
+import {
+    AuthorizeGitHubWorkflowParams,
+    launchAuthorizeGitHubWorkflowCommand,
+} from "../../commands/authorizeGitHubWorkflow/authorizeGitHubWorkflowCommands";
 
 export class DraftWorkflowPanel extends BasePanel<"draftWorkflow"> {
     constructor(extensionUri: Uri) {
@@ -54,21 +59,17 @@ export class DraftWorkflowPanel extends BasePanel<"draftWorkflow"> {
 
 export class DraftWorkflowDataProvider implements PanelDataProvider<"draftWorkflow"> {
     readonly draftDirectory: string;
-    readonly octokit: Octokit;
     constructor(
         readonly sessionProvider: ReadyAzureSessionProvider,
         readonly workspaceFolder: WorkspaceFolder,
         readonly draftBinaryPath: string,
         readonly kubectl: APIAvailable<KubectlV1>,
-        readonly githubSession: AuthenticationSession,
+        readonly octokit: Octokit,
         readonly gitHubRepos: GitHubRepo[],
         readonly existingWorkflowFiles: ExistingFile[],
         readonly initialSelection: InitialSelection,
     ) {
         this.draftDirectory = path.dirname(draftBinaryPath);
-        this.octokit = new Octokit({
-            auth: `token ${githubSession.accessToken}`,
-        });
     }
 
     getTitle(): string {
@@ -102,6 +103,7 @@ export class DraftWorkflowDataProvider implements PanelDataProvider<"draftWorkfl
             launchDraftDockerfile: false,
             launchDraftDeployment: false,
             launchAttachAcrToCluster: false,
+            launchAuthorizeGitHubWorkflow: false,
         };
     }
 
@@ -127,6 +129,7 @@ export class DraftWorkflowDataProvider implements PanelDataProvider<"draftWorkfl
                     workspaceFolder: this.workspaceFolder,
                 }),
             launchAttachAcrToCluster: (params) => this.handleLaunchAttachAcrToCluster(params),
+            launchAuthorizeGitHubWorkflow: (params) => this.handleLaunchAuthorizeGitHubWorkflow(params),
         };
     }
 
@@ -335,6 +338,21 @@ export class DraftWorkflowDataProvider implements PanelDataProvider<"draftWorkfl
         };
 
         launchAttachAcrToClusterCommand(commandParams);
+    }
+
+    private handleLaunchAuthorizeGitHubWorkflow(params: LaunchAuthorizeGitHubWorkflowParams) {
+        const commandParams: AuthorizeGitHubWorkflowParams = {
+            initialSelection: {
+                subscriptionId: params.initialSubscriptionId || undefined,
+                acrResourceGroup: params.initialAcrResourceGroup || undefined,
+                acrName: params.initialAcrName || undefined,
+                repositoryOwner: params.initialGitHubRepo?.gitHubRepoOwner || undefined,
+                repositoryName: params.initialGitHubRepo?.gitHubRepoName || undefined,
+                branch: params.initialBranch || undefined,
+            },
+        };
+
+        launchAuthorizeGitHubWorkflowCommand(commandParams);
     }
 }
 
